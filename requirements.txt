@@ -5,3 +5,4 @@ PyJWT==2.15.1
 python-dotenv==1.2.3
 pydantic==2.13.5
 pwdlib
+argon2-cffi
