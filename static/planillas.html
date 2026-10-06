@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planillas · 100TCompras</title>
+  <link rel="manifest" href="/app/manifest.webmanifest">
+  <meta name="theme-color" content="#223c61">
+  <script src="/app/offline-db.js" defer></script>
+  <script src="/app/offline.js" defer></script>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #e4e8ed; color: #223c61; font-family: Arial, sans-serif; }
+    main { width: min(100%, 390px); height: min(844px, 100vh); min-height: 0; margin: 0 auto; padding: 24px 20px; background: #f8f9fb; overflow-y: auto; box-shadow: 0 12px 40px #223c6126; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+    h1 { margin: 0; font-size: 22px; } h2 { margin: 0 0 14px; font-size: 19px; } h3 { margin: 0 0 8px; font-size: 17px; }
+    p { line-height: 1.45; }
+    .volver { color: #365d8d; text-decoration: none; white-space: nowrap; font-size: 14px; }
+    .bloque { margin: 18px 0; padding: 16px; border: 1px solid #e1e5eb; border-radius: 14px; background: white; }
+    label { display: block; margin: 14px 0 6px; font-size: 14px; font-weight: bold; }
+    input, select, textarea { width: 100%; min-height: 44px; padding: 11px; border: 1px solid #cbd2dc; border-radius: 9px; background: white; color: #223c61; font: inherit; }
+    textarea { min-height: 78px; resize: vertical; }
+    button { padding: 11px 14px; border: 0; border-radius: 9px; background: #223c61; color: white; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .secundario { background: #eaf1fb; color: #223c61; }
+    .aviso { margin: 12px 0; padding: 12px; border-radius: 10px; background: #eaf1fb; color: #344f73; font-size: 14px; }
+    .alerta { background: #fff1d6; color: #754c00; }
+    .lista-scroll { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid #e1e5eb; border-radius: 12px; background: #f8f9fb; }
+    .item-planilla, .item-solicitud { margin: 5px 0; padding: 12px; border: 1px solid #e1e5eb; border-radius: 10px; background: white; }
+    .item-planilla { width: 100%; color: #223c61; text-align: left; font: inherit; cursor: pointer; }
+    .item-planilla strong, .item-planilla small { display: block; }
+    .item-planilla small { margin-top: 4px; color: #647184; line-height: 1.4; }
+    button.item-solicitud { display: block; width: 100%; color: #223c61; text-align: left; font: inherit; cursor: pointer; }
+    button.item-solicitud:active { background: #eaf1fb; }
+    .dialogo { width: min(calc(100% - 32px), 350px); max-height: min(82vh, 720px); overflow-y: auto; padding: 18px; border: 0; border-radius: 16px; color: #223c61; background: white; box-shadow: 0 12px 40px #223c6140; }
+    .dialogo::backdrop { background: #17243b80; }
+    .dialogo-cerrar { display: block; margin-left: auto; }
+    .dialogo p { margin: 6px 0; color: #647184; overflow-wrap: anywhere; }
+    .mensaje { min-height: 20px; font-size: 14px; }
+    .fecha { margin: 12px 0; padding: 12px; border: 1px solid #e1e5eb; border-radius: 10px; background: white; }
+    .fecha strong { display: block; margin-top: 4px; }
+    @media (max-width: 430px) { body { display: block; background: #f8f9fb; } main { width: 100%; height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; box-shadow: none; } }
+  </style>
+  <script src="/app/planillas.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Planillas</h1>
+      <a class="volver" href="/app/">Menú principal</a>
+    </header>
+
+    <section id="pantalla-opciones" class="pantalla">
+      <p>Elegí qué querés hacer.</p>
+      <div class="botones">
+        <button id="boton-nueva" type="button">Planilla nueva</button>
+        <button id="boton-existente" class="secundario" type="button">Planilla existente</button>
+      </div>
+      <p id="mensaje-inicial" class="mensaje" role="status"></p>
+    </section>
+
+    <section id="pantalla-nueva" class="pantalla" hidden>
+      <button class="secundario volver-pantalla" data-volver="pantalla-opciones" type="button">← Volver a Planillas</button>
+      <div class="bloque">
+        <h2>Planilla nueva</h2>
+        <div id="aviso-contratista" class="aviso alerta" hidden>
+          Esta planilla corresponde a la semana siguiente. Si necesitás material con urgencia, comunicate con el personal de la empresa.
+        </div>
+        <div class="fecha">Próxima salida de compras:<strong id="fecha-compra-nueva"></strong></div>
+        <label for="obra-nueva">Obra</label>
+        <select id="obra-nueva" required></select>
+        <div class="botones"><button id="boton-crear-planilla" type="button">Crear planilla</button></div>
+        <p id="mensaje-nueva" class="mensaje" role="status"></p>
+      </div>
+    </section>
+
+    <section id="pantalla-existente" class="pantalla" hidden>
+      <button class="secundario volver-pantalla" data-volver="pantalla-opciones" type="button">← Volver a Planillas</button>
+      <div class="bloque">
+        <h2>Planillas existentes</h2>
+        <p class="aviso">Se muestran las planillas que tienen solicitudes pendientes. Las anteriores se pueden consultar; solo se agregan solicitudes durante la semana habilitada para tu rol.</p>
+        <label for="buscar-planilla">Buscar por obra o solicitante</label>
+        <input id="buscar-planilla" type="search" placeholder="Escribí para buscar" autocomplete="off">
+        <p id="cantidad-planillas" class="mensaje"></p>
+        <div id="lista-planillas" class="lista-scroll"></div>
+        <p id="mensaje-existente" class="mensaje" role="status"></p>
+      </div>
+    </section>
+
+    <section id="pantalla-detalle" class="pantalla" hidden>
+      <button id="boton-volver-detalle" class="secundario" type="button">← Volver</button>
+      <div class="bloque">
+        <h2 id="detalle-titulo"></h2>
+        <p id="detalle-fecha" class="mensaje"></p>
+        <p id="aviso-solo-consulta" class="aviso" hidden>Esta planilla es de una semana anterior: podés consultarla, pero no agregar solicitudes.</p>
+        <h3>Solicitudes</h3>
+        <div id="lista-solicitudes" class="lista-scroll"></div>
+      </div>
+      <section id="bloque-agregar-solicitud" class="bloque">
+        <h2>Nueva solicitud</h2>
+        <form id="formulario-solicitud">
+          <label for="buscar-articulo">Artículo</label>
+          <input id="buscar-articulo" type="search" placeholder="Escribí para filtrar" autocomplete="off">
+          <select id="articulo-solicitud" required></select>
+          <label for="cantidad-solicitud">Cantidad</label>
+          <input id="cantidad-solicitud" type="number" min="0.01" step="any" required>
+          <label for="area-solicitud">Área</label>
+          <select id="area-solicitud" required></select>
+          <label for="observaciones-solicitud">Observaciones</label>
+          <textarea id="observaciones-solicitud" maxlength="1000" placeholder="Detalles del pedido"></textarea>
+          <div class="botones"><button id="boton-agregar-solicitud" type="submit">Agregar solicitud</button></div>
+        </form>
+        <p id="mensaje-solicitud" class="mensaje" role="status"></p>
+      </section>
+    </section>
+
+    <dialog id="dialogo-solicitud" class="dialogo" aria-labelledby="detalle-solicitud-titulo">
+      <button id="boton-cerrar-solicitud" class="secundario dialogo-cerrar" type="button">Cerrar</button>
+      <section id="vista-solicitud">
+        <h3 id="detalle-solicitud-titulo"></h3>
+        <p id="detalle-solicitud-area"></p>
+        <p id="detalle-solicitud-solicitante"></p>
+        <p id="detalle-solicitud-estado"></p>
+        <p id="detalle-solicitud-observaciones"></p>
+        <p id="mensaje-accion-solicitud" class="mensaje" role="status"></p>
+        <div id="acciones-solicitud" class="botones">
+          <button id="boton-modificar-solicitud" class="secundario" type="button">Modificar</button>
+          <button id="boton-cancelar-solicitud" class="secundario" type="button">Cancelar solicitud</button>
+        </div>
+        <form id="formulario-cancelar-solicitud" hidden>
+          <label for="motivo-cancelacion">Motivo de la cancelación</label>
+          <textarea id="motivo-cancelacion" maxlength="1000" required minlength="3" placeholder="Contá por qué se cancela"></textarea>
+          <div class="botones">
+            <button id="boton-confirmar-cancelacion" type="submit">Confirmar cancelación</button>
+            <button id="boton-volver-cancelacion" class="secundario" type="button">Volver</button>
+          </div>
+        </form>
+      </section>
+      <form id="formulario-editar-solicitud" hidden>
+        <h3>Modificar solicitud</h3>
+        <label for="buscar-articulo-edicion">Artículo</label>
+        <input id="buscar-articulo-edicion" type="search" placeholder="Escribí para filtrar" autocomplete="off">
+        <select id="articulo-edicion" required></select>
+        <label for="cantidad-edicion">Cantidad</label>
+        <input id="cantidad-edicion" type="number" min="0.01" step="any" required>
+        <label for="area-edicion">Área</label>
+        <select id="area-edicion" required></select>
+        <label for="observaciones-edicion">Observaciones</label>
+        <textarea id="observaciones-edicion" maxlength="1000"></textarea>
+        <p id="mensaje-edicion" class="mensaje" role="status"></p>
+        <div class="botones">
+          <button id="boton-guardar-edicion" type="submit">Guardar cambios</button>
+          <button id="boton-cancelar-edicion" class="secundario" type="button">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
+  </main>
+</body>
+</html>

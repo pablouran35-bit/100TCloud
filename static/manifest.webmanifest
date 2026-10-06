@@ -1,0 +1,15 @@
+{
+  "id": "/app/",
+  "name": "100TCompras",
+  "short_name": "100TCompras",
+  "description": "Planillas y tareas de 100TCompras",
+  "lang": "es-AR",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#f8f9fb",
+  "theme_color": "#223c61",
+  "icons": [
+    { "src": "/app/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compras · 100TCompras</title>
+  <link rel="manifest" href="/app/manifest.webmanifest">
+  <meta name="theme-color" content="#223c61">
+  <script src="/app/offline-db.js" defer></script>
+  <script src="/app/offline.js" defer></script>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #e4e8ed; color: #223c61; font-family: Arial, sans-serif; }
+    main { width: min(100%, 390px); height: min(844px, 100vh); min-height: 0; margin: 0 auto; padding: 22px 18px; background: #f8f9fb; overflow-y: auto; box-shadow: 0 12px 40px #223c6126; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: 22px; } h2 { margin: 0 0 12px; font-size: 19px; } h3 { margin: 0 0 8px; font-size: 16px; }
+    p { line-height: 1.4; }
+    .volver { color: #365d8d; text-decoration: none; white-space: nowrap; font-size: 14px; }
+    .pestanas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 14px; }
+    button { padding: 11px 13px; border: 0; border-radius: 9px; background: #223c61; color: white; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .secundario { background: #eaf1fb; color: #223c61; }
+    .pestana { background: #eaf1fb; color: #223c61; }
+    .pestana.activa { background: #223c61; color: white; }
+    label { display: block; margin: 13px 0 6px; font-size: 14px; font-weight: bold; }
+    input, select, textarea { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #cbd2dc; border-radius: 9px; background: white; color: #223c61; font: inherit; }
+    textarea { min-height: 84px; resize: vertical; }
+    .bloque { margin: 12px 0; padding: 14px; border: 1px solid #e1e5eb; border-radius: 14px; background: white; }
+    .lista-scroll { max-height: 500px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid #e1e5eb; border-radius: 12px; background: #f8f9fb; }
+    .item { display: block; width: 100%; margin: 5px 0; padding: 12px; border: 1px solid #e1e5eb; border-radius: 10px; background: white; color: #223c61; text-align: left; font: inherit; cursor: pointer; }
+    .item strong, .item small { display: block; }
+    .item small { margin-top: 4px; color: #647184; line-height: 1.4; }
+    .estado { display: inline-block; margin-top: 7px; padding: 4px 8px; border-radius: 99px; background: #fff1d6; color: #754c00; font-size: 12px; font-weight: bold; }
+    .estado[data-estado="EN PROCESO"], .estado[data-estado="ENCARGADO"] { background: #eaf1fb; color: #245a91; }
+    .estado[data-estado="COMPRADO Y RETIRADO"] { background: #e4f5eb; color: #276341; }
+    .ayuda, .detalle { color: #647184; }
+    .ayuda { font-size: 13px; }
+    .historial { max-height: 180px; overflow-y: auto; margin: 8px 0; padding: 0; list-style: none; }
+    .registro { margin: 7px 0; padding: 9px; border: 1px solid #e1e5eb; border-radius: 9px; background: #f8f9fb; font-size: 13px; }
+    .registro strong, .registro small { display: block; }
+    .registro small { margin-top: 3px; color: #647184; }
+    .dialogo { width: min(calc(100% - 30px), 350px); max-height: min(84vh, 740px); overflow-y: auto; padding: 17px; border: 0; border-radius: 16px; color: #223c61; background: white; box-shadow: 0 12px 40px #223c6140; }
+    .dialogo::backdrop { background: #17243b80; }
+    .cerrar { display: block; margin-left: auto; }
+    .botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .mensaje { min-height: 20px; margin: 10px 0 0; font-size: 14px; }
+    @media (max-width: 430px) { body { display: block; background: #f8f9fb; } main { width: 100%; height: 100vh; height: 100dvh; min-height: 100vh; min-height: 100dvh; box-shadow: none; } }
+  </style>
+  <script src="/app/compras.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><h1>Compras</h1><a class="volver" href="/app/">Menú principal</a></header>
+    <nav class="pestanas" aria-label="Secciones de Compras">
+      <button id="pestana-solicitudes" class="pestana activa" type="button">Solicitudes</button>
+      <button id="pestana-tareas" class="pestana" type="button">Tareas</button>
+    </nav>
+
+    <section id="seccion-solicitudes">
+      <div id="vista-planillas" class="bloque">
+        <h2>Planillas por resolver</h2>
+        <p class="ayuda">Se muestran las planillas con solicitudes que todavía no están compradas y retiradas.</p>
+        <label for="buscar-planilla-compra">Buscar por obra o número</label>
+        <input id="buscar-planilla-compra" type="search" placeholder="Escribí para buscar" autocomplete="off">
+        <p id="cantidad-planillas-compra" class="mensaje"></p>
+        <div id="lista-planillas-compra" class="lista-scroll"></div>
+        <p id="mensaje-planillas-compra" class="mensaje" role="status"></p>
+      </div>
+      <div id="vista-solicitudes" class="bloque" hidden>
+        <button id="volver-planillas-compra" class="secundario" type="button">← Volver a planillas</button>
+        <h2 id="titulo-planilla-compra"></h2>
+        <p id="fecha-planilla-compra" class="ayuda"></p>
+        <div id="lista-solicitudes-compra" class="lista-scroll"></div>
+        <p id="mensaje-solicitudes-compra" class="mensaje" role="status"></p>
+      </div>
+    </section>
+
+    <section id="seccion-tareas" class="bloque" hidden>
+      <h2>Tareas pendientes</h2>
+      <p class="ayuda">Al cambiar el estado, se guarda quién lo modificó y cuándo.</p>
+      <label for="buscar-tarea-compra">Buscar tarea</label>
+      <input id="buscar-tarea-compra" type="search" placeholder="Descripción o solicitante" autocomplete="off">
+      <p id="cantidad-tareas-compra" class="mensaje"></p>
+      <div id="lista-tareas-compra" class="lista-scroll"></div>
+      <p id="mensaje-tareas-compra" class="mensaje" role="status"></p>
+    </section>
+  </main>
+
+  <dialog id="dialogo-solicitud-compra" class="dialogo" aria-labelledby="titulo-solicitud-compra">
+    <button class="secundario cerrar" type="button" data-cerrar="dialogo-solicitud-compra">Cerrar</button>
+    <h2 id="titulo-solicitud-compra">Gestionar solicitud</h2>
+    <p id="datos-solicitud-compra" class="detalle"></p>
+    <form id="formulario-solicitud-compra">
+      <label for="estado-solicitud-compra">Estado</label>
+      <select id="estado-solicitud-compra" required></select>
+      <label for="proveedor-solicitud-compra">Proveedor</label>
+      <select id="proveedor-solicitud-compra"></select>
+      <label for="observaciones-solicitud-compra">Observaciones</label>
+      <textarea id="observaciones-solicitud-compra" maxlength="4000"></textarea>
+      <h3>Historial</h3>
+      <ul id="historial-solicitud-compra" class="historial"></ul>
+      <p id="mensaje-guardar-solicitud" class="mensaje" role="status"></p>
+      <div class="botones"><button id="boton-guardar-solicitud" type="submit">Guardar cambios</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="dialogo-tarea-compra" class="dialogo" aria-labelledby="titulo-tarea-compra">
+    <button class="secundario cerrar" type="button" data-cerrar="dialogo-tarea-compra">Cerrar</button>
+    <h2 id="titulo-tarea-compra">Gestionar tarea</h2>
+    <p id="datos-tarea-compra" class="detalle"></p>
+    <form id="formulario-tarea-compra">
+      <label for="estado-tarea-compra">Estado</label>
+      <select id="estado-tarea-compra" required>
+        <option value="PENDIENTE">PENDIENTE</option>
+        <option value="EN PROCESO">EN PROCESO</option>
+        <option value="FINALIZADA">FINALIZADA</option>
+        <option value="CANCELADA">CANCELADA</option>
+      </select>
+      <label for="observaciones-tarea-compra">Observaciones</label>
+      <textarea id="observaciones-tarea-compra" maxlength="4000"></textarea>
+      <h3>Historial</h3>
+      <ul id="historial-tarea-compra" class="historial"></ul>
+      <p id="mensaje-guardar-tarea" class="mensaje" role="status"></p>
+      <div class="botones"><button id="boton-guardar-tarea-compra" type="submit">Guardar cambios</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

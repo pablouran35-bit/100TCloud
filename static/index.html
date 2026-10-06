@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>100TCompras</title>
+  <link rel="manifest" href="/app/manifest.webmanifest">
+  <meta name="theme-color" content="#223c61">
+  <script src="/app/offline-db.js" defer></script>
+  <script src="/app/offline.js" defer></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f5f0e6;
+      color: #223c61;
+      font-family: Arial, sans-serif;
+    }
+
+    main {
+      width: min(100%, 460px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 26px 22px;
+      background: #f8f9fb;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+
+    .logo {
+      display: grid;
+      width: 50px;
+      height: 50px;
+      place-items: center;
+      border-radius: 15px;
+      background: #223c61;
+      color: white;
+      font-weight: bold;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 21px;
+    }
+
+    h2 {
+      margin: 0 0 8px;
+      font-size: 23px;
+    }
+
+    h3 {
+      margin: 22px 0 12px;
+      font-size: 16px;
+    }
+
+    p {
+      line-height: 1.5;
+    }
+
+    .subtitulo,
+    .descripcion {
+      color: #647184;
+    }
+
+    .subtitulo {
+      margin: 4px 0 0;
+      font-size: 14px;
+    }
+
+    .descripcion {
+      margin: 0 0 24px;
+    }
+
+    label {
+      display: block;
+      margin: 17px 0 7px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      min-height: 48px;
+      padding: 12px;
+      border: 1px solid #cbd2dc;
+      border-radius: 11px;
+      background: white;
+      color: #223c61;
+      font: inherit;
+      font-size: 16px;
+    }
+
+    button,
+    select {
+      font: inherit;
+    }
+
+    .boton-principal {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 20px;
+      border: 0;
+      border-radius: 12px;
+      background: #223c61;
+      color: white;
+      font-weight: bold;
+    }
+
+    .rejilla {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 11px;
+      margin-top: 18px;
+    }
+
+    .opcion {
+      min-height: 112px;
+      padding: 13px;
+      border: 1px solid #e1e5eb;
+      border-radius: 15px;
+      background: white;
+      color: #223c61;
+      text-align: left;
+    }
+
+    .opcion:disabled {
+      color: #647184;
+      opacity: 0.7;
+    }
+
+    .icono {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 24px;
+    }
+
+    .opcion strong,
+    .opcion small {
+      display: block;
+    }
+
+    .opcion small {
+      margin-top: 5px;
+      color: #647184;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .aviso {
+      margin-top: 18px;
+      padding: 13px;
+      border-radius: 11px;
+      background: #eaf1fb;
+      color: #344f73;
+      font-size: 14px;
+    }
+
+    .aviso-alerta {
+      background: #fff1d6;
+      color: #754c00;
+    }
+
+    .fecha {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid #e1e5eb;
+    }
+
+    .fecha strong {
+      display: block;
+      margin-top: 5px;
+    }
+
+    .volver {
+      margin: 0 0 18px;
+      padding: 8px 0;
+      border: 0;
+      background: transparent;
+      color: #365d8d;
+      font: inherit;
+    }
+
+    .mensaje {
+      min-height: 20px;
+      margin: 12px 0 0;
+      font-size: 14px;
+    }
+
+    footer {
+      margin-top: 28px;
+      color: #647184;
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <div class="logo">100T</div>
+      <div>
+        <h1>100TCompras</h1>
+        <p class="subtitulo">Gestión de compras</p>
+      </div>
+    </header>
+
+    <section id="pantalla-ingreso" class="pantalla">
+      <h2>Ingresar</h2>
+      <p class="descripcion">
+        Usá el usuario y la contraseña que te dio el administrador.
+      </p>
+
+      <form id="formulario-ingreso">
+        <label for="usuario">Nombre de usuario</label>
+        <input
+          id="usuario"
+          name="usuario"
+          type="text"
+          autocomplete="username"
+          required
+        >
+
+        <label for="contrasena">Contraseña</label>
+        <input
+          id="contrasena"
+          name="contrasena"
+          type="password"
+          autocomplete="current-password"
+          required
+        >
+
+        <button id="boton-ingresar" class="boton-principal" type="submit">
+          Ingresar
+        </button>
+        <p id="mensaje-ingreso" class="mensaje" role="status"></p>
+      </form>
+
+      <div class="aviso">
+        El primer ingreso en este teléfono requiere conexión a Internet.
+      </div>
+    </section>
+
+    <section id="pantalla-inicio" class="pantalla" hidden>
+      <p id="saludo" class="subtitulo"></p>
+      <h2>¿Qué necesitás hacer?</h2>
+
+      <div class="rejilla">
+        <button id="abrir-planillas" class="opcion" type="button">
+          <span class="icono">🗂️</span>
+          <strong>Planillas</strong>
+          <small>Consultar o crear planillas</small>
+        </button>
+
+        <button class="opcion" type="button" data-pendiente="Compras" data-ocultar-contratista>
+          <span class="icono">🛒</span>
+          <strong>Compras</strong>
+          <small>Gestionar solicitudes</small>
+        </button>
+
+        <button class="opcion" type="button" data-pendiente="Entregas" data-ocultar-contratista>
+          <span class="icono">📦</span>
+          <strong>Entregas</strong>
+          <small>Marcar solicitudes entregadas</small>
+        </button>
+
+        <button class="opcion" type="button" data-pendiente="Tareas" data-ocultar-contratista>
+          <span class="icono">✅</span>
+          <strong>Tareas</strong>
+          <small>Consultar y agregar tareas</small>
+        </button>
+
+        <button class="opcion" type="button" data-pendiente="Administración" data-ocultar-contratista>
+          <span class="icono">⚙️</span>
+          <strong>Administración</strong>
+          <small>Datos y reportes</small>
+        </button>
+
+        <button id="boton-salir" class="opcion" type="button">
+          <span class="icono">↪️</span>
+          <strong>Salir</strong>
+          <small>Cerrar la sesión</small>
+        </button>
+      </div>
+
+      <button id="abrir-cambiar-contrasena" class="volver" type="button">
+        Cambiar contraseña
+      </button>
+
+      <p id="aviso-inicio" class="mensaje" role="status"></p>
+    </section>
+
+    <section id="pantalla-planillas" class="pantalla" hidden>
+      <button class="volver" type="button" data-volver="pantalla-inicio">
+        ← Volver al menú principal
+      </button>
+
+      <h2>Planillas</h2>
+      <p class="descripcion">¿Qué querés hacer?</p>
+
+      <div class="rejilla">
+        <button id="abrir-planilla-nueva" class="opcion" type="button">
+          <span class="icono">➕</span>
+          <strong>Planilla nueva</strong>
+          <small>Preparar una planilla para una obra</small>
+        </button>
+
+        <button id="abrir-planilla-existente" class="opcion" type="button">
+          <span class="icono">📋</span>
+          <strong>Planilla existente</strong>
+          <small>Consultar planillas con solicitudes pendientes</small>
+        </button>
+      </div>
+    </section>
+
+    <section id="pantalla-planilla-nueva" class="pantalla" hidden>
+      <button class="volver" type="button" data-volver="pantalla-planillas">
+        ← Volver a Planillas
+      </button>
+
+      <h2>Planilla nueva</h2>
+
+      <div id="aviso-contratista" class="aviso aviso-alerta" hidden>
+        Esta planilla corresponde a la semana siguiente. Si necesitás algún
+        material con urgencia, comunicate con el personal de la empresa
+        correspondiente.
+      </div>
+
+      <div class="fecha">
+        Próxima salida de compras:
+        <strong id="fecha-compra"></strong>
+      </div>
+
+      <div class="aviso">
+        En el siguiente paso conectaremos esta pantalla con las obras y el
+        guardado de la planilla en 100TCloud.
+      </div>
+    </section>
+
+    <section id="pantalla-planilla-existente" class="pantalla" hidden>
+      <button class="volver" type="button" data-volver="pantalla-planillas">
+        ← Volver a Planillas
+      </button>
+
+      <h2>Planillas existentes</h2>
+      <p class="descripcion">
+        Se mostrarán las planillas que tengan solicitudes cuyo estado sea
+        distinto de ENTREGADO.
+      </p>
+
+      <div class="aviso">
+        En el siguiente paso conectaremos la consulta con la base de datos.
+        Las planillas de semanas anteriores serán solo para consulta; las
+        modificaciones dependerán de tu rol y de la semana actual.
+      </div>
+    </section>
+
+    <footer>100TCloud · 100TCompras</footer>
+  </main>
+
+  <script>
+    const formulario = document.getElementById("formulario-ingreso");
+    const botonIngresar = document.getElementById("boton-ingresar");
+    const mensajeIngreso = document.getElementById("mensaje-ingreso");
+
+    function mostrarPantalla(id) {
+      document.querySelectorAll(".pantalla").forEach((pantalla) => {
+        pantalla.hidden = true;
+      });
+
+      document.getElementById(id).hidden = false;
+    }
+
+    function actualizarMenuPorRol(usuario) {
+      const roles = (usuario.roles || []).map((rol) => rol.toUpperCase());
+      const contratistaExclusivo = roles.includes("CONTRATISTA") &&
+        !roles.includes("ADMINISTRADOR") && !roles.includes("EMPLEADO");
+      document.querySelectorAll("[data-ocultar-contratista]").forEach((opcion) => {
+        opcion.hidden = contratistaExclusivo;
+      });
+    }
+
+    formulario.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+
+      botonIngresar.disabled = true;
+      botonIngresar.textContent = "Verificando...";
+      mensajeIngreso.textContent = "";
+
+      try {
+        const respuesta = await fetch("/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            usuario: document.getElementById("usuario").value.trim(),
+            contrasena: document.getElementById("contrasena").value
+          })
+        });
+
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+          throw new Error(
+            resultado.detail || "No se pudo iniciar sesión."
+          );
+        }
+
+        sessionStorage.setItem("token", resultado.access_token);
+        sessionStorage.setItem(
+          "usuario",
+          JSON.stringify(resultado.usuario)
+        );
+        window.dispatchEvent(new CustomEvent("100t:sincronizar-pendientes"));
+
+        actualizarMenuPorRol(resultado.usuario);
+
+        document.getElementById("saludo").textContent =
+          "Hola, " + resultado.usuario.nombre + ".";
+
+        mostrarPantalla("pantalla-inicio");
+      } catch (error) {
+        mensajeIngreso.textContent = error.message;
+        mensajeIngreso.style.color = "#b42318";
+      } finally {
+        botonIngresar.disabled = false;
+        botonIngresar.textContent = "Ingresar";
+      }
+    });
+
+    document.getElementById("abrir-planillas").addEventListener("click", () => {
+  window.location.href = "/app/planillas.html";
+});
+
+    document
+      .getElementById("abrir-planilla-nueva")
+      .addEventListener("click", mostrarPantallaNuevaPlanilla);
+
+    document
+      .getElementById("abrir-planilla-existente")
+      .addEventListener("click", () => {
+        mostrarPantalla("pantalla-planilla-existente");
+      });
+
+    function mostrarPantallaNuevaPlanilla() {
+      const usuario = JSON.parse(sessionStorage.getItem("usuario") || "{}");
+      const roles = (usuario.roles || []).map((rol) => rol.toUpperCase());
+      const esContratista =
+        roles.includes("CONTRATISTA") &&
+        !roles.includes("ADMINISTRADOR") &&
+        !roles.includes("EMPLEADO");
+
+      const hoy = new Date();
+      hoy.setHours(12, 0, 0, 0);
+
+      const dia = hoy.getDay();
+      const avisoContratista =
+        document.getElementById("aviso-contratista");
+
+      let diasHastaMartes;
+
+      if (esContratista && (dia === 1 || dia === 2)) {
+        // Lunes o martes: se asigna a la semana posterior del contratista.
+        diasHastaMartes = dia === 1 ? 8 : 7;
+        avisoContratista.hidden = false;
+      } else {
+        // Próximo martes. Si hoy es martes, toma el de la semana siguiente.
+        diasHastaMartes = (2 - dia + 7) % 7;
+        if (diasHastaMartes === 0) {
+          diasHastaMartes = 7;
+        }
+        avisoContratista.hidden = true;
+      }
+
+      const fechaCompra = new Date(hoy);
+      fechaCompra.setDate(hoy.getDate() + diasHastaMartes);
+
+      document.getElementById("fecha-compra").textContent =
+        new Intl.DateTimeFormat("es-AR", {
+          weekday: "long",
+          day: "numeric",
+          month: "long"
+        }).format(fechaCompra);
+
+      mostrarPantalla("pantalla-planilla-nueva");
+    }
+
+    document.querySelectorAll("[data-volver]").forEach((boton) => {
+      boton.addEventListener("click", () => {
+        mostrarPantalla(boton.dataset.volver);
+      });
+    });
+
+    document.querySelectorAll("[data-pendiente]").forEach((boton) => {
+  // Compras, Tareas y Administración tienen un destino propio.
+  if (["Compras", "Administración", "Tareas", "Entregas"].includes(boton.dataset.pendiente)) {
+    return;
+  }
+
+  boton.addEventListener("click", () => {
+    document.getElementById("aviso-inicio").textContent =
+      "El módulo de " + boton.dataset.pendiente +
+      " lo agregaremos después de Planillas.";
+  });
+});
+
+    document.querySelector('[data-pendiente="Tareas"]').addEventListener("click", () => {
+      window.location.href = "/app/tareas.html";
+    });
+
+    document.querySelector('[data-pendiente="Compras"]').addEventListener("click", () => {
+      window.location.href = "/app/compras.html";
+    });
+
+    document.querySelector('[data-pendiente="Entregas"]').addEventListener("click", () => {
+      window.location.href = "/app/entregas.html";
+    });
+
+    document.getElementById("boton-salir").addEventListener("click", () => {
+      sessionStorage.clear();
+      formulario.reset();
+      mensajeIngreso.textContent = "";
+      document.getElementById("aviso-inicio").textContent = "";
+      mostrarPantalla("pantalla-ingreso");
+    });
+
+    document.getElementById("abrir-cambiar-contrasena").addEventListener("click", () => {
+      window.location.href = "/app/cambiar_contrasena.html";
+    });
+
+    document
+  .querySelector('[data-pendiente="Administración"]')
+  .addEventListener("click", () => {
+    const usuario = JSON.parse(
+      sessionStorage.getItem("usuario") || "{}"
+    );
+
+    const roles = (usuario.roles || []).map((rol) => rol.toUpperCase());
+
+    if (roles.includes("ADMINISTRADOR") || roles.includes("EMPLEADO")) {
+      window.location.href = "/app/administracion_menu.html";
+    } else {
+      document.getElementById("aviso-inicio").textContent =
+        "Esta sección es solo para empleados y administradores.";
+    }
+  });
+  const tokenGuardado = sessionStorage.getItem("token");
+
+if (tokenGuardado) {
+  const usuarioGuardado = JSON.parse(
+    sessionStorage.getItem("usuario") || "{}"
+  );
+
+  actualizarMenuPorRol(usuarioGuardado);
+
+  document.getElementById("saludo").textContent =
+    "Hola, " + (usuarioGuardado.nombre || usuarioGuardado.usuario || "");
+
+  mostrarPantalla("pantalla-inicio");
+}
+  </script>
+</body>
+</html>

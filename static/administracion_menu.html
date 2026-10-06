@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administración · 100TCompras</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #f5f0e6;
+      color: #223c61;
+      font-family: Arial, sans-serif;
+    }
+
+    main {
+      width: min(100%, 520px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 24px 20px;
+      background: #f8f9fb;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    h1 { margin: 0; font-size: 22px; }
+    p { line-height: 1.45; }
+
+    a.volver {
+      color: #365d8d;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .opciones {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .opcion {
+      min-height: 94px;
+      padding: 16px;
+      border: 1px solid #e1e5eb;
+      border-radius: 14px;
+      background: white;
+      color: #223c61;
+      text-align: left;
+      font: inherit;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .opcion:active { background: #eaf1fb; }
+
+    .disponible { border-color: #9bb5d6; }
+
+    #mensaje {
+      min-height: 22px;
+      margin-top: 18px;
+      color: #647184;
+      font-size: 14px;
+    }
+
+    #sin-acceso {
+      padding: 16px;
+      border-radius: 12px;
+      background: white;
+    }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1>Administración</h1>
+      <a class="volver" href="/app/">Menú principal</a>
+    </header>
+
+    <p>Elegí qué sección querés administrar.</p>
+
+    <p id="sin-acceso" hidden>
+      Esta sección es solo para empleados y administradores.
+    </p>
+
+    <section id="opciones" class="opciones" hidden>
+      <button class="opcion disponible" type="button" data-seccion="obras">
+        Obras
+      </button>
+      <button class="opcion disponible" type="button" data-seccion="proveedores">
+        Proveedores
+      </button>
+      <button class="opcion" type="button" data-seccion="articulos">
+        Artículos
+      </button>
+      <button class="opcion disponible" type="button" data-seccion="areas">
+        Áreas
+      </button>
+      <button class="opcion disponible" type="button" data-seccion="usuarios" data-solo-administrador hidden>
+        Usuarios
+      </button>
+      <button class="opcion disponible" type="button" data-seccion="reportes">
+        Reportes
+      </button>
+    </section>
+
+    <p id="mensaje" role="status"></p>
+  </main>
+
+  <script>
+    const token = sessionStorage.getItem("token");
+    const usuario = JSON.parse(sessionStorage.getItem("usuario") || "{}");
+    const roles = (usuario.roles || []).map((rol) => rol.toUpperCase());
+
+    if (!token) {
+      window.location.replace("/app/");
+    } else if (!roles.includes("ADMINISTRADOR") && !roles.includes("EMPLEADO")) {
+      document.getElementById("sin-acceso").hidden = false;
+    } else {
+      document.getElementById("opciones").hidden = false;
+      if (roles.includes("ADMINISTRADOR")) {
+        document.querySelector('[data-solo-administrador]').hidden = false;
+      }
+    }
+
+    document.querySelectorAll("[data-seccion]").forEach((boton) => {
+      boton.addEventListener("click", () => {
+        if (boton.dataset.seccion === "obras") {
+          window.location.href = "/app/administracion.html";
+          return;
+        }
+        if (boton.dataset.seccion === "articulos") {
+            window.location.href = "/app/administracion_articulos.html";
+            return;
+            }
+        if (boton.dataset.seccion === "areas") {
+          window.location.href = "/app/administracion_areas.html";
+          return;
+        }
+        if (boton.dataset.seccion === "proveedores") {
+          window.location.href = "/app/administracion_proveedores.html";
+          return;
+        }
+        if (boton.dataset.seccion === "usuarios") {
+          window.location.href = "/app/administracion_usuarios.html";
+          return;
+        }
+        if (boton.dataset.seccion === "reportes") {
+          window.location.href = "/app/reportes.html";
+          return;
+        }
+        document.getElementById("mensaje").textContent =
+          "La sección " + boton.textContent.trim() +
+          " todavía no está conectada.";
+      });
+    });
+  </script>
+</body>
+</html>
