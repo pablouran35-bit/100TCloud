@@ -84,6 +84,33 @@ def ver_planilla(
     return planilla
 
 
+# ==========================================================
+# DÍA DE COMPRAS
+# ==========================================================
+
+@router.get("/dia-compras")
+def listar_dia_compras(
+    _identidad=Depends(identidad_tareas)
+):
+    """
+    Devuelve todas las solicitudes correspondientes
+    al Día de Compras.
+
+    No filtra por estado de compra.
+    Por lo tanto, también aparecen solicitudes:
+    - PENDIENTE DE COMPRA
+    - COMPRADO Y RETIRADO
+    - COMPRADO A RETIRAR
+    - ENTREGADO
+    - etc.
+
+    La fecha es determinada automáticamente por
+    comprascloud.listar_solicitudes_dia_compras().
+    """
+
+    return comprascloud.listar_solicitudes_dia_compras()
+
+
 @router.put(
     "/planillas/{planilla_id}/solicitudes/{solicitud_id}"
 )

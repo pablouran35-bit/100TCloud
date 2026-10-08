@@ -85,9 +85,15 @@ def obtener_identidad(usuario_id):
     try:
         with conexion_db.cursor() as cursor:
             cursor.execute("""
-                SELECT p.id, p.activo
+                SELECT
+                    p.id,
+                    p.activo,
+                    p.nombre,
+                    p.apellido,
+                    u.usuario
                 FROM usuarios AS u
-                JOIN personas AS p ON p.id = u.persona_id
+                JOIN personas AS p
+                    ON p.id = u.persona_id
                 WHERE u.id = %s;
             """, (usuario_id,))
 
@@ -99,7 +105,8 @@ def obtener_identidad(usuario_id):
             cursor.execute("""
                 SELECT r.nombre
                 FROM usuario_rol AS ur
-                JOIN roles AS r ON r.id = ur.rol_id
+                JOIN roles AS r
+                    ON r.id = ur.rol_id
                 WHERE ur.usuario_id = %s
                 ORDER BY r.id;
             """, (usuario_id,))
@@ -112,12 +119,14 @@ def obtener_identidad(usuario_id):
             return {
                 "persona_id": persona[0],
                 "activo": persona[1],
+                "nombre": persona[2] or "",
+                "apellido": persona[3] or "",
+                "nombre_usuario": persona[4] or "",
                 "roles": roles,
             }
 
     finally:
         conexion_db.close()
-
 
 def obtener_obras_disponibles(persona_id, es_contratista):
     conexion_db = conexion.conectar()

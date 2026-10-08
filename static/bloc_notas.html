@@ -1,0 +1,344 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Bloc de Comunicación · 100TCompras</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f5f0e6;
+      color: #223c61;
+      font-family: Arial, sans-serif;
+    }
+
+    main {
+      width: min(100%, 700px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 24px 20px 35px;
+      background: #f8f9fb;
+    }
+
+    .encabezado {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .logo {
+      display: grid;
+      width: 50px;
+      height: 50px;
+      place-items: center;
+      border-radius: 15px;
+      background: #223c61;
+      color: white;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .subtitulo {
+      margin: 4px 0 0;
+      color: #647184;
+      font-size: 14px;
+    }
+
+    .volver {
+      margin: 0 0 18px;
+      padding: 8px 0;
+      border: 0;
+      background: transparent;
+      color: #365d8d;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .fecha {
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border: 1px solid #e1e5eb;
+      border-radius: 12px;
+      background: white;
+    }
+
+    .fecha-label {
+      color: #647184;
+      font-size: 13px;
+    }
+
+    .fecha-valor {
+      margin-top: 4px;
+      font-size: 17px;
+      font-weight: bold;
+    }
+
+    .contenedor {
+      padding: 18px;
+      border: 1px solid #e1e5eb;
+      border-radius: 15px;
+      background: white;
+    }
+
+    .titulo-seccion {
+      margin: 0 0 14px;
+      font-size: 17px;
+    }
+
+    .historial {
+      min-height: 220px;
+      max-height: 430px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+
+    .comunicacion {
+      margin-bottom: 12px;
+      padding: 13px 14px;
+      border: 1px solid #e1e5eb;
+      border-radius: 12px;
+      background: #f8f9fb;
+    }
+
+    .comunicacion:last-child {
+      margin-bottom: 0;
+    }
+
+    .cabecera-comunicacion {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 7px;
+    }
+
+    .nombre {
+      font-weight: bold;
+      color: #223c61;
+    }
+
+    .hora {
+      color: #647184;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .texto {
+      color: #344054;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .sin-comunicaciones {
+      padding: 35px 15px;
+      color: #647184;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .separador {
+      height: 1px;
+      margin: 22px 0;
+      background: #e1e5eb;
+    }
+
+    .escribir {
+      margin-bottom: 8px;
+      font-size: 15px;
+      font-weight: bold;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 125px;
+      padding: 12px;
+      resize: vertical;
+      border: 1px solid #cbd2dc;
+      border-radius: 11px;
+      background: #fffdf8;
+      color: #223c61;
+      font: inherit;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    textarea:focus {
+      outline: 2px solid #9db9d9;
+      outline-offset: 1px;
+      border-color: #365d8d;
+    }
+
+    .ayuda {
+      margin: 7px 0 0;
+      color: #647184;
+      font-size: 12px;
+    }
+
+    .boton-agregar {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 15px;
+      border: 0;
+      border-radius: 12px;
+      background: #223c61;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .boton-agregar:hover {
+      background: #365d8d;
+    }
+
+    .boton-agregar:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .mensaje {
+      min-height: 20px;
+      margin: 12px 0 0;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .estado-cargando {
+      padding: 30px;
+      color: #647184;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    @media (max-width: 520px) {
+      main {
+        padding: 20px 14px 30px;
+      }
+
+      .contenedor {
+        padding: 14px;
+      }
+
+      .cabecera-comunicacion {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .historial {
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <main>
+
+    <button
+      id="boton-volver"
+      class="volver"
+      type="button"
+    >
+      ← Volver al menú principal
+    </button>
+
+    <header class="encabezado">
+      <div class="logo">100T</div>
+
+      <div>
+        <h1>Bloc de Comunicación</h1>
+        <p class="subtitulo">
+          Novedades y comunicaciones internas de la empresa.
+        </p>
+      </div>
+    </header>
+
+    <section class="fecha">
+      <div class="fecha-label">
+        Comunicaciones del día
+      </div>
+
+      <div
+        id="fecha-actual"
+        class="fecha-valor"
+      >
+        Cargando...
+      </div>
+    </section>
+
+    <section class="contenedor">
+
+      <h2 class="titulo-seccion">
+        Comunicaciones
+      </h2>
+
+      <div
+        id="historial"
+        class="historial"
+      >
+        <div class="estado-cargando">
+          Cargando comunicaciones...
+        </div>
+      </div>
+
+      <div class="separador"></div>
+
+      <div
+        id="nombre-usuario"
+        class="escribir"
+      >
+        Escribir comunicación
+      </div>
+
+      <textarea
+        id="texto-comunicacion"
+        maxlength="4000"
+        placeholder="Escribí aquí la comunicación..."
+      ></textarea>
+
+      <p class="ayuda">
+        No se puede modificar ni borrar una comunicación una vez agregada.
+        Atajo: Ctrl + Enter para agregar.
+      </p>
+
+      <button
+        id="boton-agregar"
+        class="boton-agregar"
+        type="button"
+      >
+        AGREGAR COMUNICACIÓN
+      </button>
+
+      <p
+        id="mensaje"
+        class="mensaje"
+        role="status"
+      ></p>
+
+    </section>
+
+  </main>
+
+  <script src="/app/bloc_notas.js"></script>
+
+</body>
+</html>

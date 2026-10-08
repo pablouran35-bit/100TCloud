@@ -1,5 +1,7 @@
+
 from datetime import datetime, timedelta, timezone
 import os
+
 from areas_api import router as router_areas
 from articulos_api import router as router_articulos
 from proveedores_api import router as router_proveedores
@@ -9,6 +11,9 @@ from tareas_api import router as router_tareas
 from compras_api import router as router_compras
 from entregas_api import router as router_entregas
 from reportes_api import router as router_reportes
+from administracion_api import router as router_administracion
+from bloc_notas_api import router as router_bloc_notas
+
 import jwt
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -16,7 +21,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import conexion
-from administracion_api import router as router_administracion
 from seguridad import verificar_contrasena
 
 
@@ -30,16 +34,19 @@ if not JWT_SECRET_KEY:
 ALGORITHM = "HS256"
 DURACION_SESION_HORAS = 12
 
+
 app = FastAPI(
     title="100TCloud",
     version="1.0.0"
 )
+
 
 app.mount(
     "/app",
     StaticFiles(directory="static", html=True),
     name="app"
 )
+
 
 app.include_router(router_administracion)
 app.include_router(router_articulos)
@@ -51,6 +58,8 @@ app.include_router(router_tareas)
 app.include_router(router_compras)
 app.include_router(router_entregas)
 app.include_router(router_reportes)
+app.include_router(router_bloc_notas)
+
 
 class DatosInicioSesion(BaseModel):
     usuario: str
@@ -141,9 +150,11 @@ def iniciar_sesion(datos: DatosInicioSesion):
     finally:
         conexion_db.close()
 
+
     vence = datetime.now(timezone.utc) + timedelta(
         hours=DURACION_SESION_HORAS
     )
+
 
     token = jwt.encode(
         {
@@ -154,6 +165,7 @@ def iniciar_sesion(datos: DatosInicioSesion):
         JWT_SECRET_KEY,
         algorithm=ALGORITHM
     )
+
 
     return {
         "access_token": token,

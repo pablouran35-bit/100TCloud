@@ -17,6 +17,7 @@ ESTADOS_SOLICITUD = (
 )
 
 ESTADOS_TAREA_ABIERTOS = ("PENDIENTE", "EN PROCESO")
+
 ESTADOS_TAREA = (
     "PENDIENTE",
     "EN PROCESO",
@@ -71,6 +72,226 @@ def _fecha_hora_texto(valor):
     return str(valor or "")
 
 
+# ==========================================================
+# DÍA DE COMPRAS
+# ==========================================================
+
+def fecha_dia_compras(hoy=None):
+    """
+    Determina cuál es el martes correspondiente al Día de Compras.
+
+    Si hoy es martes:
+        devuelve hoy.
+
+    Si hoy es miércoles, jueves, viernes, sábado, domingo
+    o lunes:
+        devuelve el próximo martes.
+    """
+
+    if hoy is None:
+        hoy = datetime.now(ZONA_ARGENTINA).date()
+
+    dias_hasta_martes = (1 - hoy.weekday()) % 7
+
+    return hoy + timedelta(days=dias_hasta_martes)
+
+
+def martes_correspondiente(fecha_planilla):
+    """
+    Convierte la fecha almacenada en una planilla al martes
+    de compra que le corresponde.
+
+    La PC puede guardar la fecha en que se creó la planilla,
+    mientras que Cloud puede guardar directamente la fecha
+    del próximo martes.
+    """
+
+    if fecha_planilla is None:
+        return None
+
+    if isinstance(fecha_planilla, datetime):
+        fecha_planilla = fecha_planilla.date()
+
+    dias_hasta_martes = (
+        1 - fecha_planilla.weekday()
+    ) % 7
+
+    return fecha_planilla + timedelta(
+        days=dias_hasta_martes
+    )
+
+
+def listar_solicitudes_dia_compras():
+    """
+    Devuelve las solicitudes que deben formar parte
+    del Día de Compras.
+
+    REGLAS:
+
+    1. Solicitudes de planillas anteriores al Día de Compras:
+       solamente aparecen si todavía están pendientes.
+
+    2. Solicitudes de planillas correspondientes al
+       Día de Compras:
+       aparecen todas, sin importar su estado.
+
+    3. Solicitudes cuya última modificación de estado
+       ocurrió durante el Día de Compras:
+       también aparecen.
+
+    4. Las solicitudes CANCELADAS no aparecen.
+
+    5. Para solicitudes de fechas anteriores, los estados
+       considerados finalizados son:
+
+        COMPRADO Y RETIRADO
+        ENTREGADO
+        CANCELADA
+    """
+
+    fecha_objetivo = fecha_dia_compras()
+
+    conexion_db = conexion.conectar()
+
+    try:
+        with conexion_db.cursor() as cursor:
+
+            cursor.execute("""
+                WITH ultima_modificacion AS (
+                    SELECT
+                        hs.solicitud_id,
+                        MAX(hs.fecha_hora) AS ultima_fecha
+                    FROM historial_solicitudes AS hs
+                    GROUP BY hs.solicitud_id
+                )
+
+                SELECT
+                    s.id,
+                    ps.planilla_id,
+                    s.cantidad,
+                    pr.nombre,
+                    o.nombre,
+                    s.estado,
+                    p.fecha_compra,
+                    um.ultima_fecha
+
+                FROM planilla_solicitudes AS ps
+
+                JOIN solicitudes AS s
+                    ON s.id = ps.solicitud_id
+
+                JOIN planillas AS p
+                    ON p.id = ps.planilla_id
+
+                JOIN obras AS o
+                    ON o.id = p.obra_id
+
+                JOIN productos AS pr
+                    ON pr.id = s.producto_id
+
+                LEFT JOIN ultima_modificacion AS um
+                    ON um.solicitud_id = s.id
+
+                WHERE
+
+                    UPPER(
+                        COALESCE(s.estado, '')
+                    ) <> 'CANCELADA'
+
+                    AND
+
+                    (
+
+                        -- ==================================
+                        -- 1. SOLICITUDES DEL DÍA DE COMPRAS
+                        -- ==================================
+                        (
+                            p.fecha_compra::date = %s
+                        )
+
+                        OR
+
+                        -- ==================================
+                        -- 2. SOLICITUDES ANTERIORES
+                        --    QUE SIGUEN PENDIENTES
+                        -- ==================================
+                        (
+                            p.fecha_compra::date < %s
+
+                            AND
+
+                            UPPER(
+                                COALESCE(s.estado, '')
+                            ) NOT IN (
+                                'COMPRADO Y RETIRADO',
+                                'ENTREGADO',
+                                'CANCELADA'
+                            )
+                        )
+
+                        OR
+
+                        -- ==================================
+                        -- 3. SOLICITUDES MODIFICADAS
+                        --    EL MISMO DÍA DE COMPRAS
+                        -- ==================================
+                        (
+                            um.ultima_fecha IS NOT NULL
+
+                            AND
+
+                            (
+                                um.ultima_fecha
+                                AT TIME ZONE 'America/Argentina/Buenos_Aires'
+                            )::date = %s
+                        )
+                    )
+
+                ORDER BY
+                    o.nombre,
+                    pr.nombre,
+                    s.id;
+            """, (
+                fecha_objetivo,
+                fecha_objetivo,
+                fecha_objetivo,
+            ))
+
+            solicitudes = [
+                {
+                    "id": fila[0],
+                    "planilla_id": fila[1],
+                    "cantidad": fila[2],
+                    "producto": fila[3],
+                    "obra": fila[4],
+                    "estado": fila[5] or "",
+                    "fecha_planilla": _fecha_texto(
+                        fila[6]
+                    ),
+                    "ultima_modificacion":
+                        _fecha_hora_texto(
+                            fila[7]
+                        ),
+                }
+                for fila in cursor.fetchall()
+            ]
+
+            return {
+                "fecha_compra":
+                    fecha_objetivo.isoformat(),
+
+                "solicitudes":
+                    solicitudes,
+            }
+
+    finally:
+        conexion_db.close()
+
+
+# ==========================================================
+# PROVEEDORES
+# ==========================================================
+
 def obtener_proveedores_activos():
     conexion_db = conexion.conectar()
 
@@ -95,6 +316,10 @@ def obtener_proveedores_activos():
         conexion_db.close()
 
 
+# ==========================================================
+# PLANILLAS DE COMPRA
+# ==========================================================
+
 def listar_planillas_compra():
     conexion_db = conexion.conectar()
 
@@ -107,12 +332,16 @@ def listar_planillas_compra():
                     p.fecha_compra,
                     COUNT(s.id)
                 FROM planillas AS p
+
                 JOIN obras AS o
                     ON o.id = p.obra_id
+
                 JOIN planilla_solicitudes AS ps
                     ON ps.planilla_id = p.id
+
                 JOIN solicitudes AS s
                     ON s.id = ps.solicitud_id
+
                 WHERE UPPER(
                     COALESCE(s.estado, '')
                 ) NOT IN (
@@ -120,10 +349,12 @@ def listar_planillas_compra():
                     'ENTREGADO',
                     'CANCELADA'
                 )
+
                 GROUP BY
                     p.id,
                     o.nombre,
                     p.fecha_compra
+
                 ORDER BY p.id DESC;
             """)
 
@@ -154,8 +385,10 @@ def obtener_planilla_compra(planilla_id):
                     o.nombre,
                     p.fecha_compra
                 FROM planillas AS p
+
                 JOIN obras AS o
                     ON o.id = p.obra_id
+
                 WHERE p.id = %s;
             """, (planilla_id,))
 
@@ -174,13 +407,18 @@ def obtener_planilla_compra(planilla_id):
                     pv.nombre,
                     s.observaciones
                 FROM planilla_solicitudes AS ps
+
                 JOIN solicitudes AS s
                     ON s.id = ps.solicitud_id
+
                 JOIN productos AS pr
                     ON pr.id = s.producto_id
+
                 LEFT JOIN proveedores AS pv
                     ON pv.id = s.proveedor_id
+
                 WHERE ps.planilla_id = %s
+
                   AND UPPER(
                       COALESCE(s.estado, '')
                   ) NOT IN (
@@ -188,6 +426,7 @@ def obtener_planilla_compra(planilla_id):
                       'ENTREGADO',
                       'CANCELADA'
                   )
+
                 ORDER BY s.id;
             """, (planilla_id,))
 
@@ -221,11 +460,15 @@ def obtener_planilla_compra(planilla_id):
                         ),
                         hs.observaciones
                     FROM historial_solicitudes AS hs
+
                     LEFT JOIN usuarios AS u
                         ON u.id = hs.usuario_id
+
                     LEFT JOIN personas AS p
                         ON p.id = u.persona_id
+
                     WHERE hs.solicitud_id = ANY(%s)
+
                     ORDER BY hs.id;
                 """, (ids,))
 
@@ -271,6 +514,10 @@ def obtener_planilla_compra(planilla_id):
         conexion_db.close()
 
 
+# ==========================================================
+# ACTUALIZAR SOLICITUD ONLINE
+# ==========================================================
+
 def actualizar_solicitud_compra(
     planilla_id,
     solicitud_id,
@@ -311,10 +558,13 @@ def actualizar_solicitud_compra(
             cursor.execute("""
                 SELECT s.estado
                 FROM solicitudes AS s
+
                 JOIN planilla_solicitudes AS ps
                     ON ps.solicitud_id = s.id
+
                 WHERE ps.planilla_id = %s
                   AND s.id = %s
+
                 FOR UPDATE OF s;
             """, (
                 planilla_id,
@@ -403,6 +653,10 @@ def actualizar_solicitud_compra(
         conexion_db.close()
 
 
+# ==========================================================
+# ACTUALIZAR ESTADO OFFLINE
+# ==========================================================
+
 def actualizar_estado_solicitud_compra(
     planilla_id,
     solicitud_id,
@@ -413,7 +667,7 @@ def actualizar_estado_solicitud_compra(
     fecha_operacion=None
 ):
     """
-    Cambia SOLAMENTE el estado de una solicitud de compra.
+    Cambia SOLAMENTE el estado de una solicitud.
 
     Esta función está pensada especialmente para operaciones
     realizadas sin conexión.
@@ -474,10 +728,13 @@ def actualizar_estado_solicitud_compra(
             cursor.execute("""
                 SELECT s.estado
                 FROM planilla_solicitudes AS ps
+
                 JOIN solicitudes AS s
                     ON s.id = ps.solicitud_id
+
                 WHERE ps.planilla_id = %s
                   AND s.id = %s
+
                 FOR UPDATE OF s;
             """, (
                 planilla_id,
@@ -496,16 +753,9 @@ def actualizar_estado_solicitud_compra(
                 fila[0] or "PENDIENTE DE COMPRA"
             ).strip().upper()
 
-            
-              # ------------------------------------------------------
+            # --------------------------------------------------
             # DETECCIÓN DE CONFLICTO
-            # ------------------------------------------------------
-            #
-            # Si el estado actual de Cloud no es el mismo que el
-            # estado que tenía el dispositivo cuando se desconectó,
-            # alguien modificó la solicitud mientras estaba offline.
-            #
-            # NO sobrescribimos Cloud.
+            # --------------------------------------------------
 
             if estado_cloud != estado_anterior:
                 raise ConflictoSolicitudCompra(
@@ -513,6 +763,7 @@ def actualizar_estado_solicitud_compra(
                     estado_anterior,
                     estado_cloud
                 )
+
             if estado_cloud == "ENTREGADO":
                 raise ValueError(
                     "La solicitud ya fue entregada "
@@ -574,6 +825,10 @@ def actualizar_estado_solicitud_compra(
         conexion_db.close()
 
 
+# ==========================================================
+# TAREAS
+# ==========================================================
+
 def listar_tareas_compra():
     conexion_db = conexion.conectar()
 
@@ -589,10 +844,13 @@ def listar_tareas_compra():
                     p.nombre,
                     p.apellido
                 FROM tareas AS t
+
                 LEFT JOIN personas AS p
                     ON p.id = t.solicitante_id
+
                 WHERE UPPER(t.estado)
                     IN ('PENDIENTE', 'EN PROCESO')
+
                 ORDER BY t.id DESC;
             """)
 
@@ -631,8 +889,10 @@ def obtener_tarea_compra(tarea_id):
                     p.nombre,
                     p.apellido
                 FROM tareas AS t
+
                 LEFT JOIN personas AS p
                     ON p.id = t.solicitante_id
+
                 WHERE t.id = %s
                   AND UPPER(t.estado)
                       IN ('PENDIENTE', 'EN PROCESO');
@@ -659,11 +919,15 @@ def obtener_tarea_compra(tarea_id):
                     ),
                     ht.observaciones
                 FROM historial_tareas AS ht
+
                 LEFT JOIN usuarios AS u
                     ON u.id = ht.usuario_id
+
                 LEFT JOIN personas AS p
                     ON p.id = u.persona_id
+
                 WHERE ht.tarea_id = %s
+
                 ORDER BY ht.id;
             """, (tarea_id,))
 
