@@ -1,3 +1,4 @@
+
 import os
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
@@ -19,6 +20,10 @@ router = APIRouter(prefix="/planillas", tags=["Planillas"])
 esquema_bearer = HTTPBearer(auto_error=False)
 ZONA_ARGENTINA = timezone(timedelta(hours=-3))
 
+
+# ============================================================
+# FECHAS Y OPERACIONES SIN CONEXIÓN
+# ============================================================
 
 def _instante_operacion_offline(valor):
     if not valor:
@@ -66,8 +71,14 @@ def _fecha_operacion_offline(valor):
     )
 
 
+# ============================================================
+# IDENTIDAD Y PERMISOS
+# ============================================================
+
 def identidad_actual(
-    credenciales: HTTPAuthorizationCredentials | None = Depends(esquema_bearer)
+    credenciales: HTTPAuthorizationCredentials | None = Depends(
+        esquema_bearer
+    )
 ):
     if credenciales is None:
         raise HTTPException(
@@ -75,19 +86,41 @@ def identidad_actual(
             detail="Necesitás iniciar sesión."
         )
 
+   
     try:
         datos = jwt.decode(
             credenciales.credentials,
             JWT_SECRET_KEY,
             algorithms=[ALGORITHM]
         )
-
         usuario_id = int(datos["sub"])
 
-    except (jwt.InvalidTokenError, KeyError, TypeError, ValueError):
+    except jwt.ExpiredSignatureError:
+        print("ERROR JWT: el token está vencido.")
         raise HTTPException(
             status_code=401,
-            detail="La sesión venció o no es válida."
+            detail="El token está vencido."
+        )
+
+    except jwt.InvalidSignatureError:
+        print("ERROR JWT: la firma del token no coincide.")
+        raise HTTPException(
+            status_code=401,
+            detail="La firma de la sesión no es válida."
+        )
+
+    except jwt.InvalidTokenError as error:
+        print(f"ERROR JWT: {type(error).__name__}")
+        raise HTTPException(
+            status_code=401,
+            detail="El token no es válido."
+        )
+
+    except (KeyError, TypeError, ValueError) as error:
+        print(f"ERROR DATOS JWT: {type(error).__name__}")
+        raise HTTPException(
+            status_code=401,
+            detail="Los datos de la sesión no son válidos."
         )
 
     identidad = planillascloud.obtener_identidad(usuario_id)
@@ -109,6 +142,18 @@ def identidad_actual(
     identidad["usuario_id"] = usuario_id
 
     return identidad
+
+
+def exigir_administrador(identidad):
+    """
+    La aprobación se autoriza en el servidor, no solamente
+    ocultando botones en la pantalla del teléfono.
+    """
+    if "ADMINISTRADOR" not in identidad["roles"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un administrador puede aprobar planillas."
+        )
 
 
 def es_contratista(identidad):
@@ -134,6 +179,10 @@ def comprobar_obra(obra_id, identidad, contratista):
         )
 
 
+# ============================================================
+# MODELOS DE DATOS
+# ============================================================
+
 class NuevaPlanilla(BaseModel):
     obra_id: int
     fecha_compra: date | None = None
@@ -154,6 +203,16 @@ class CambioEstadoSolicitud(BaseModel):
     estado: str = Field(min_length=1, max_length=100)
     estado_anterior: str = Field(min_length=1, max_length=100)
 
+
+class ResolverAprobacion(BaseModel):
+    solicitudes_ids: list[int] = Field(min_length=1)
+    decision: str = Field(min_length=1, max_length=20)
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+# ============================================================
+# DATOS INICIALES
+# ============================================================
 
 @router.get("/inicial")
 def datos_iniciales(identidad=Depends(identidad_actual)):
@@ -201,6 +260,123 @@ def datos_iniciales(identidad=Depends(identidad_actual)):
     }
 
 
+# ============================================================
+# APROBACIÓN DE PLANILLAS — SOLO ADMINISTRADORES
+#
+# IMPORTANTE:
+# Estas rutas se declaran antes de las rutas dinámicas
+# /{planilla_id}.
+# ============================================================
+
+@router.get("/aprobacion/pendientes")
+def listar_planillas_para_aprobar(
+    identidad=Depends(identidad_actual)
+):
+    exigir_administrador(identidad)
+
+    try:
+        return planillascloud.listar_planillas_para_aprobacion()
+
+    except Exception:
+        # No se envían detalles internos de la base de datos al cliente.
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudieron cargar las planillas pendientes."
+        )
+
+
+@router.get("/aprobacion/{planilla_id}")
+def ver_planilla_para_aprobar(
+    planilla_id: int,
+    identidad=Depends(identidad_actual)
+):
+    exigir_administrador(identidad)
+
+    try:
+        planilla = planillascloud.obtener_planilla_para_aprobacion(
+            planilla_id
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo cargar el detalle de la planilla."
+        )
+
+    if planilla is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No se encontró una planilla pendiente "
+                "con ese número."
+            )
+        )
+
+    return planilla
+
+
+@router.post("/aprobacion/{planilla_id}/resolver")
+def resolver_aprobacion(
+    planilla_id: int,
+    datos: ResolverAprobacion,
+    identidad=Depends(identidad_actual)
+):
+    exigir_administrador(identidad)
+
+    decision = datos.decision.strip().upper()
+
+    if decision not in ("APROBAR", "RECHAZAR"):
+        raise HTTPException(
+            status_code=422,
+            detail="La decisión debe ser APROBAR o RECHAZAR."
+        )
+
+    motivo = (datos.motivo or "").strip()
+
+    if decision == "RECHAZAR" and len(motivo) < 3:
+        raise HTTPException(
+            status_code=422,
+            detail="Para rechazar solicitudes, indicá un motivo."
+        )
+
+    try:
+        resultado = planillascloud.resolver_aprobacion_planilla(
+            planilla_id=planilla_id,
+            solicitudes_ids=datos.solicitudes_ids,
+            decision=decision,
+            motivo=motivo,
+            usuario_id=identidad["usuario_id"],
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error)
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "No se pudo procesar la aprobación. "
+                "No continúes hasta verificar el estado de la planilla."
+            )
+        )
+
+    return {
+        **resultado,
+        "mensaje": (
+            "Las solicitudes seleccionadas fueron aprobadas."
+            if decision == "APROBAR"
+            else "Las solicitudes seleccionadas fueron rechazadas."
+        ),
+    }
+
+
+# ============================================================
+# LISTAR PLANILLAS DEL USUARIO
+# ============================================================
+
 @router.get("")
 def listar_planillas(identidad=Depends(identidad_actual)):
     contratista = es_contratista(identidad)
@@ -210,6 +386,10 @@ def listar_planillas(identidad=Depends(identidad_actual)):
         contratista
     )
 
+
+# ============================================================
+# CREAR PLANILLA
+# ============================================================
 
 @router.post("", status_code=201)
 def crear_planilla(
@@ -283,6 +463,10 @@ def crear_planilla(
     }
 
 
+# ============================================================
+# VER PLANILLA
+# ============================================================
+
 @router.get("/{planilla_id}")
 def ver_planilla(
     planilla_id: int,
@@ -311,6 +495,10 @@ def ver_planilla(
 
     return planilla
 
+
+# ============================================================
+# AGREGAR SOLICITUD
+# ============================================================
 
 @router.post("/{planilla_id}/solicitudes", status_code=201)
 def agregar_solicitud(
@@ -385,6 +573,10 @@ def agregar_solicitud(
     }
 
 
+# ============================================================
+# MODIFICAR SOLICITUD
+# ============================================================
+
 @router.put("/{planilla_id}/solicitudes/{solicitud_id}")
 def modificar_solicitud(
     planilla_id: int,
@@ -455,6 +647,10 @@ def modificar_solicitud(
     }
 
 
+# ============================================================
+# CAMBIAR ESTADO DE SOLICITUD
+# ============================================================
+
 @router.patch("/{planilla_id}/solicitudes/{solicitud_id}/estado")
 def cambiar_estado_solicitud(
     planilla_id: int,
@@ -470,16 +666,6 @@ def cambiar_estado_solicitud(
         alias="X-Offline-Created-At"
     )
 ):
-    """
-    Cambia únicamente el estado de una solicitud.
-
-    Este endpoint es el utilizado por las operaciones que pueden
-    sincronizarse desde modo offline.
-
-    estado_anterior es obligatorio para poder detectar si la solicitud
-    cambió en Cloud mientras el dispositivo estaba desconectado.
-    """
-
     contratista = es_contratista(identidad)
 
     planilla = planillascloud.obtener_planilla(
@@ -547,6 +733,10 @@ def cambiar_estado_solicitud(
         "mensaje": "Estado de solicitud actualizado correctamente."
     }
 
+
+# ============================================================
+# CANCELAR SOLICITUD
+# ============================================================
 
 @router.patch("/{planilla_id}/solicitudes/{solicitud_id}/cancelar")
 def cancelar_solicitud(

@@ -7,6 +7,7 @@
   <title>100TCompras</title>
   <link rel="manifest" href="/app/manifest.webmanifest">
   <meta name="theme-color" content="#223c61">
+
   <script src="/app/offline-db.js" defer></script>
   <script src="/app/offline.js" defer></script>
 
@@ -110,6 +111,15 @@
       font: inherit;
     }
 
+    button {
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+
     .boton-principal {
       width: 100%;
       min-height: 48px;
@@ -141,6 +151,11 @@
     .opcion:disabled {
       color: #647184;
       opacity: 0.7;
+    }
+
+    .opcion:hover:not(:disabled) {
+      border-color: #639ef0;
+      box-shadow: 0 2px 8px #223c6112;
     }
 
     .icono {
@@ -222,8 +237,13 @@
       </div>
     </header>
 
+    <!-- ==========================================
+         PANTALLA DE INGRESO
+         ========================================== -->
+
     <section id="pantalla-ingreso" class="pantalla">
       <h2>Ingresar</h2>
+
       <p class="descripcion">
         Usá el usuario y la contraseña que te dio el administrador.
       </p>
@@ -247,17 +267,29 @@
           required
         >
 
-        <button id="boton-ingresar" class="boton-principal" type="submit">
+        <button
+          id="boton-ingresar"
+          class="boton-principal"
+          type="submit"
+        >
           Ingresar
         </button>
 
-        <p id="mensaje-ingreso" class="mensaje" role="status"></p>
+        <p
+          id="mensaje-ingreso"
+          class="mensaje"
+          role="status"
+        ></p>
       </form>
 
       <div class="aviso">
         El primer ingreso en este teléfono requiere conexión a Internet.
       </div>
     </section>
+
+    <!-- ==========================================
+         MENÚ PRINCIPAL
+         ========================================== -->
 
     <section id="pantalla-inicio" class="pantalla" hidden>
       <p id="saludo" class="subtitulo"></p>
@@ -266,10 +298,28 @@
 
       <div class="rejilla">
 
-        <button id="abrir-planillas" class="opcion" type="button">
+        <button
+          id="abrir-planillas"
+          class="opcion"
+          type="button"
+        >
           <span class="icono">🗂️</span>
           <strong>Planillas</strong>
           <small>Consultar o crear planillas</small>
+        </button>
+
+        <!-- Solo administradores -->
+
+        <button
+          id="abrir-aprobar-planillas"
+          class="opcion"
+          type="button"
+          data-solo-administrador
+          hidden
+        >
+          <span class="icono">🛡️</span>
+          <strong>Aprobar planillas</strong>
+          <small>Revisar solicitudes antes de enviarlas a Compras</small>
         </button>
 
         <button
@@ -316,11 +366,7 @@
           <small>Datos y reportes</small>
         </button>
 
-        <!-- =====================================================
-             BLOC DE COMUNICACIÓN
-             Visible para empleados y administradores.
-             Oculto para contratistas exclusivos.
-             ===================================================== -->
+        <!-- Bloc de comunicación -->
 
         <button
           id="abrir-bloc-notas"
@@ -333,7 +379,11 @@
           <small>Novedades y comunicaciones internas</small>
         </button>
 
-        <button id="boton-salir" class="opcion" type="button">
+        <button
+          id="boton-salir"
+          class="opcion"
+          type="button"
+        >
           <span class="icono">↪️</span>
           <strong>Salir</strong>
           <small>Cerrar la sesión</small>
@@ -349,8 +399,16 @@
         Cambiar contraseña
       </button>
 
-      <p id="aviso-inicio" class="mensaje" role="status"></p>
+      <p
+        id="aviso-inicio"
+        class="mensaje"
+        role="status"
+      ></p>
     </section>
+
+    <!-- ==========================================
+         MENÚ DE PLANILLAS
+         ========================================== -->
 
     <section id="pantalla-planillas" class="pantalla" hidden>
       <button
@@ -389,7 +447,15 @@
       </div>
     </section>
 
-    <section id="pantalla-planilla-nueva" class="pantalla" hidden>
+    <!-- ==========================================
+         PLANILLA NUEVA
+         ========================================== -->
+
+    <section
+      id="pantalla-planilla-nueva"
+      class="pantalla"
+      hidden
+    >
       <button
         class="volver"
         type="button"
@@ -421,7 +487,15 @@
       </div>
     </section>
 
-    <section id="pantalla-planilla-existente" class="pantalla" hidden>
+    <!-- ==========================================
+         PLANILLAS EXISTENTES
+         ========================================== -->
+
+    <section
+      id="pantalla-planilla-existente"
+      class="pantalla"
+      hidden
+    >
       <button
         class="volver"
         type="button"
@@ -454,18 +528,34 @@
     const botonIngresar = document.getElementById("boton-ingresar");
     const mensajeIngreso = document.getElementById("mensaje-ingreso");
 
+    // ==========================================
+    // NAVEGACIÓN ENTRE PANTALLAS
+    // ==========================================
+
     function mostrarPantalla(id) {
       document.querySelectorAll(".pantalla").forEach((pantalla) => {
         pantalla.hidden = true;
       });
 
-      document.getElementById(id).hidden = false;
+      const pantallaDestino = document.getElementById(id);
+
+      if (pantallaDestino) {
+        pantallaDestino.hidden = false;
+      }
+    }
+
+    // ==========================================
+    // ROLES Y VISIBILIDAD DEL MENÚ
+    // ==========================================
+
+    function obtenerRoles(usuario) {
+      return (usuario.roles || []).map((rol) =>
+        String(rol).toUpperCase()
+      );
     }
 
     function actualizarMenuPorRol(usuario) {
-      const roles = (usuario.roles || []).map((rol) =>
-        rol.toUpperCase()
-      );
+      const roles = obtenerRoles(usuario);
 
       const contratistaExclusivo =
         roles.includes("CONTRATISTA") &&
@@ -477,7 +567,20 @@
         .forEach((opcion) => {
           opcion.hidden = contratistaExclusivo;
         });
+
+      const esAdministrador =
+        roles.includes("ADMINISTRADOR");
+
+      document
+        .querySelectorAll("[data-solo-administrador]")
+        .forEach((opcion) => {
+          opcion.hidden = !esAdministrador;
+        });
     }
+
+    // ==========================================
+    // INGRESO
+    // ==========================================
 
     formulario.addEventListener("submit", async (evento) => {
       evento.preventDefault();
@@ -485,6 +588,7 @@
       botonIngresar.disabled = true;
       botonIngresar.textContent = "Verificando...";
       mensajeIngreso.textContent = "";
+      mensajeIngreso.style.color = "";
 
       try {
         const respuesta = await fetch("/auth/login", {
@@ -537,6 +641,9 @@
       }
     });
 
+    // ==========================================
+    // ABRIR PLANILLAS
+    // ==========================================
 
     document
       .getElementById("abrir-planillas")
@@ -544,6 +651,38 @@
         window.location.href = "/app/planillas.html";
       });
 
+    // ==========================================
+    // ABRIR APROBACIÓN DE PLANILLAS
+    // ==========================================
+
+    document
+      .getElementById("abrir-aprobar-planillas")
+      .addEventListener("click", () => {
+        const token = sessionStorage.getItem("token");
+
+        const usuario = JSON.parse(
+          sessionStorage.getItem("usuario") || "{}"
+        );
+
+        const roles = obtenerRoles(usuario);
+
+        if (!token) {
+          mostrarPantalla("pantalla-ingreso");
+          return;
+        }
+
+        if (!roles.includes("ADMINISTRADOR")) {
+          document.getElementById("aviso-inicio").textContent =
+            "Esta sección es solo para administradores.";
+          return;
+        }
+
+        window.location.href = "/app/aprobar_planillas.html";
+      });
+
+    // ==========================================
+    // PLANILLA NUEVA Y EXISTENTE
+    // ==========================================
 
     document
       .getElementById("abrir-planilla-nueva")
@@ -552,22 +691,18 @@
         mostrarPantallaNuevaPlanilla
       );
 
-
     document
       .getElementById("abrir-planilla-existente")
       .addEventListener("click", () => {
         mostrarPantalla("pantalla-planilla-existente");
       });
 
-
     function mostrarPantallaNuevaPlanilla() {
       const usuario = JSON.parse(
         sessionStorage.getItem("usuario") || "{}"
       );
 
-      const roles = (usuario.roles || []).map((rol) =>
-        rol.toUpperCase()
-      );
+      const roles = obtenerRoles(usuario);
 
       const esContratista =
         roles.includes("CONTRATISTA") &&
@@ -586,18 +721,13 @@
       let diasHastaMartes;
 
       if (esContratista && (dia === 1 || dia === 2)) {
-
-        // Lunes o martes: se asigna a la semana posterior del contratista.
+        // Lunes o martes: se asigna a la semana posterior.
         diasHastaMartes = dia === 1 ? 8 : 7;
-
         avisoContratista.hidden = false;
 
       } else {
-
-        // Próximo martes. Si hoy es martes,
-        // toma el de la semana siguiente.
-        diasHastaMartes =
-          (2 - dia + 7) % 7;
+        // Próximo martes. Si hoy es martes, toma el siguiente.
+        diasHastaMartes = (2 - dia + 7) % 7;
 
         if (diasHastaMartes === 0) {
           diasHastaMartes = 7;
@@ -622,26 +752,25 @@
       mostrarPantalla("pantalla-planilla-nueva");
     }
 
+    // ==========================================
+    // BOTONES VOLVER
+    // ==========================================
 
     document
       .querySelectorAll("[data-volver]")
       .forEach((boton) => {
-
         boton.addEventListener("click", () => {
-          mostrarPantalla(
-            boton.dataset.volver
-          );
+          mostrarPantalla(boton.dataset.volver);
         });
-
       });
 
+    // ==========================================
+    // BOTONES DE MÓDULOS
+    // ==========================================
 
     document
       .querySelectorAll("[data-pendiente]")
       .forEach((boton) => {
-
-        // Compras, Tareas, Administración y Entregas
-        // tienen un destino propio.
         if (
           [
             "Compras",
@@ -654,142 +783,118 @@
         }
 
         boton.addEventListener("click", () => {
-
-          document.getElementById(
-            "aviso-inicio"
-          ).textContent =
+          document.getElementById("aviso-inicio").textContent =
             "El módulo de " +
             boton.dataset.pendiente +
             " lo agregaremos después de Planillas.";
-
         });
-
       });
-
 
     document
       .querySelector('[data-pendiente="Tareas"]')
       .addEventListener("click", () => {
-        window.location.href =
-          "/app/tareas.html";
+        window.location.href = "/app/tareas.html";
       });
-
 
     document
       .querySelector('[data-pendiente="Compras"]')
       .addEventListener("click", () => {
-        window.location.href =
-          "/app/compras.html";
+        window.location.href = "/app/compras.html";
       });
-
 
     document
       .querySelector('[data-pendiente="Entregas"]')
       .addEventListener("click", () => {
-        window.location.href =
-          "/app/entregas.html";
+        window.location.href = "/app/entregas.html";
       });
-
 
     document
       .getElementById("abrir-bloc-notas")
       .addEventListener("click", () => {
-        window.location.href =
-          "/app/bloc_notas.html";
+        window.location.href = "/app/bloc_notas.html";
       });
 
+    // ==========================================
+    // ADMINISTRACIÓN
+    // ==========================================
 
     document
-      .getElementById("boton-salir")
+      .querySelector('[data-pendiente="Administración"]')
       .addEventListener("click", () => {
-
-        sessionStorage.clear();
-
-        formulario.reset();
-
-        mensajeIngreso.textContent = "";
-
-        document.getElementById(
-          "aviso-inicio"
-        ).textContent = "";
-
-        mostrarPantalla(
-          "pantalla-ingreso"
-        );
-
-      });
-
-
-    document
-      .getElementById("abrir-cambiar-contrasena")
-      .addEventListener("click", () => {
-
-        window.location.href =
-          "/app/cambiar_contrasena.html";
-
-      });
-
-
-    document
-      .querySelector(
-        '[data-pendiente="Administración"]'
-      )
-      .addEventListener("click", () => {
-
         const usuario = JSON.parse(
           sessionStorage.getItem("usuario") || "{}"
         );
 
-        const roles = (usuario.roles || []).map(
-          (rol) => rol.toUpperCase()
-        );
+        const roles = obtenerRoles(usuario);
 
         if (
           roles.includes("ADMINISTRADOR") ||
           roles.includes("EMPLEADO")
         ) {
-
           window.location.href =
             "/app/administracion_menu.html";
-
         } else {
-
-          document.getElementById(
-            "aviso-inicio"
-          ).textContent =
+          document.getElementById("aviso-inicio").textContent =
             "Esta sección es solo para empleados y administradores.";
-
         }
-
       });
 
+    // ==========================================
+    // CAMBIAR CONTRASEÑA
+    // ==========================================
+
+    document
+      .getElementById("abrir-cambiar-contrasena")
+      .addEventListener("click", () => {
+        window.location.href =
+          "/app/cambiar_contrasena.html";
+      });
+
+    // ==========================================
+    // CERRAR SESIÓN
+    // ==========================================
+
+    document
+      .getElementById("boton-salir")
+      .addEventListener("click", () => {
+        sessionStorage.clear();
+
+        formulario.reset();
+
+        mensajeIngreso.textContent = "";
+        mensajeIngreso.style.color = "";
+
+        document.getElementById("aviso-inicio").textContent = "";
+
+        actualizarMenuPorRol({ roles: [] });
+
+        mostrarPantalla("pantalla-ingreso");
+      });
+
+    // ==========================================
+    // RESTAURAR SESIÓN GUARDADA
+    // ==========================================
 
     const tokenGuardado =
       sessionStorage.getItem("token");
 
     if (tokenGuardado) {
-
       const usuarioGuardado = JSON.parse(
         sessionStorage.getItem("usuario") || "{}"
       );
 
-      actualizarMenuPorRol(
-        usuarioGuardado
-      );
+      actualizarMenuPorRol(usuarioGuardado);
 
-      document.getElementById(
-        "saludo"
-      ).textContent =
+      document.getElementById("saludo").textContent =
         "Hola, " +
         (
           usuarioGuardado.nombre ||
           usuarioGuardado.usuario ||
           ""
-        );
+        ) +
+        ".";
 
-      mostrarPantalla(
-        "pantalla-inicio"
-      );
+      mostrarPantalla("pantalla-inicio");
     }
   </script>
 </body>

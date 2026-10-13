@@ -1,10 +1,14 @@
+
 from datetime import datetime, timedelta, timezone
 
 import conexion
 import offlinecloud
 
 
-# Estados válidos para una solicitud.
+# ============================================================
+# ESTADOS VÁLIDOS PARA UNA SOLICITUD
+# ============================================================
+
 ESTADOS_SOLICITUD = (
     "PENDIENTE DE COMPRA",
     "SOLICITADO",
@@ -17,6 +21,7 @@ ESTADOS_SOLICITUD = (
     "COMPRADO A ENTREGAR POR PROVEEDOR/FLETE",
     "ENTREGADO",
     "CANCELADA",
+    "RECHAZADA",
 )
 
 
@@ -35,6 +40,10 @@ class ConflictoSolicitud(Exception):
             "La solicitud cambió mientras estabas sin conexión."
         )
 
+
+# ============================================================
+# FECHAS
+# ============================================================
 
 def fecha_local():
     zona_argentina = timezone(timedelta(hours=-3))
@@ -78,6 +87,10 @@ def puede_modificar_fecha(fecha_planilla, es_contratista, hoy=None):
     # la próxima fecha de compra. Se aceptan ambas formas en la semana activa.
     return inicio <= fecha_planilla <= fin or fecha_planilla == objetivo
 
+
+# ============================================================
+# IDENTIDAD Y CATÁLOGOS
+# ============================================================
 
 def obtener_identidad(usuario_id):
     conexion_db = conexion.conectar()
@@ -127,6 +140,7 @@ def obtener_identidad(usuario_id):
 
     finally:
         conexion_db.close()
+
 
 def obtener_obras_disponibles(persona_id, es_contratista):
     conexion_db = conexion.conectar()
@@ -189,6 +203,10 @@ def obtener_catalogos():
         conexion_db.close()
 
 
+# ============================================================
+# PLANILLAS DEL USUARIO
+# ============================================================
+
 def obtener_planillas_pendientes(persona_id, es_contratista):
     conexion_db = conexion.conectar()
 
@@ -223,7 +241,8 @@ def obtener_planillas_pendientes(persona_id, es_contratista):
                         array_agg(
                             DISTINCT NULLIF(
                                 TRIM(
-                                    per.nombre || ' ' || per.apellido
+                                    COALESCE(per.nombre, '') || ' ' ||
+                                    COALESCE(per.apellido, '')
                                 ),
                                 ''
                             )
@@ -239,8 +258,8 @@ def obtener_planillas_pendientes(persona_id, es_contratista):
                     ON s.id = ps.solicitud_id
                 LEFT JOIN personas AS per
                     ON per.id = s.persona_id
-                WHERE UPPER(COALESCE(s.estado, ''))
-                    NOT IN ('ENTREGADO', 'CANCELADA')
+                WHERE UPPER(TRIM(COALESCE(s.estado, '')))
+                    NOT IN ('ENTREGADO', 'CANCELADA', 'RECHAZADA')
                   {filtro_contratista}
                 GROUP BY
                     p.id,
@@ -384,6 +403,10 @@ def obtener_planilla(planilla_id, persona_id, es_contratista):
         conexion_db.close()
 
 
+# ============================================================
+# CREAR PLANILLA
+# ============================================================
+
 def crear_planilla(
     obra_id,
     fecha_compra,
@@ -465,6 +488,10 @@ def crear_planilla(
     finally:
         conexion_db.close()
 
+
+# ============================================================
+# AGREGAR SOLICITUD
+# ============================================================
 
 def agregar_solicitud(
     planilla_id,
@@ -615,6 +642,10 @@ def agregar_solicitud(
         conexion_db.close()
 
 
+# ============================================================
+# VALIDAR SI UNA SOLICITUD SE PUEDE EDITAR
+# ============================================================
+
 def _solicitud_editable(cursor, planilla_id, solicitud_id):
     cursor.execute("""
         SELECT
@@ -643,15 +674,21 @@ def _solicitud_editable(cursor, planilla_id, solicitud_id):
         )
 
     estado, tiene_compras = fila
+    estado_normalizado = (estado or "").strip().upper()
 
-    if (estado or "").upper() == "ENTREGADO":
+    if estado_normalizado == "ENTREGADO":
         raise ValueError(
             "No se puede modificar ni cancelar una solicitud entregada."
         )
 
-    if (estado or "").upper() == "CANCELADA":
+    if estado_normalizado == "CANCELADA":
         raise ValueError(
             "La solicitud ya está cancelada."
+        )
+
+    if estado_normalizado == "RECHAZADA":
+        raise ValueError(
+            "La solicitud fue rechazada y no se puede modificar."
         )
 
     if tiene_compras:
@@ -662,6 +699,10 @@ def _solicitud_editable(cursor, planilla_id, solicitud_id):
 
     return estado or "PENDIENTE DE COMPRA"
 
+
+# ============================================================
+# MODIFICAR SOLICITUD
+# ============================================================
 
 def actualizar_solicitud(
     planilla_id,
@@ -774,6 +815,10 @@ def actualizar_solicitud(
         conexion_db.close()
 
 
+# ============================================================
+# CAMBIAR ESTADO DE SOLICITUD
+# ============================================================
+
 def actualizar_estado_solicitud(
     planilla_id,
     solicitud_id,
@@ -784,16 +829,13 @@ def actualizar_estado_solicitud(
     fecha_operacion=None
 ):
     """
-    Cambia únicamente el estado de una solicitud.
+    Cambia el estado de una solicitud desde Planillas.
 
-    Esta función está pensada especialmente para operaciones que pueden
-    sincronizarse desde modo offline.
+    Conserva la protección de sincronización offline:
+    si el estado en Cloud ya cambió, no pisa el estado nuevo.
 
-    estado_anterior representa el estado que tenía la solicitud en el
-    dispositivo cuando el usuario realizó el cambio.
-
-    Si Cloud ya tiene otro estado, NO se pisa el cambio y se informa
-    un conflicto.
+    RECHAZADA solamente puede establecerse mediante la resolución
+    de aprobación de un administrador.
     """
 
     estado_nuevo = (estado_nuevo or "").strip().upper()
@@ -802,6 +844,12 @@ def actualizar_estado_solicitud(
     if estado_nuevo not in ESTADOS_SOLICITUD:
         raise ValueError(
             "El estado seleccionado no es válido."
+        )
+
+    if estado_nuevo == "RECHAZADA":
+        raise ValueError(
+            "El estado RECHAZADA solamente puede establecerse "
+            "desde el proceso de aprobación."
         )
 
     if not estado_anterior:
@@ -853,11 +901,6 @@ def actualizar_estado_solicitud(
                 fila[0] or "PENDIENTE DE COMPRA"
             ).strip().upper()
 
-            # Esta es la comprobación fundamental del sistema offline.
-            #
-            # Si el estado que encontramos en Cloud ya no coincide con
-            # el estado que tenía el usuario cuando hizo su operación,
-            # no sobrescribimos nada.
             if estado_actual != estado_anterior:
                 raise ConflictoSolicitud(
                     solicitud_id,
@@ -873,6 +916,11 @@ def actualizar_estado_solicitud(
             if estado_actual == "CANCELADA":
                 raise ValueError(
                     "La solicitud está cancelada y no se puede modificar."
+                )
+
+            if estado_actual == "RECHAZADA":
+                raise ValueError(
+                    "La solicitud fue rechazada y no se puede reactivar."
                 )
 
             cursor.execute("""
@@ -923,6 +971,10 @@ def actualizar_estado_solicitud(
     finally:
         conexion_db.close()
 
+
+# ============================================================
+# CANCELAR SOLICITUD
+# ============================================================
 
 def cancelar_solicitud(
     planilla_id,
@@ -997,6 +1049,487 @@ def cancelar_solicitud(
         conexion_db.commit()
 
         return True
+
+    except Exception:
+        conexion_db.rollback()
+        raise
+
+    finally:
+        conexion_db.close()
+
+
+# ============================================================
+# APROBACIÓN: LISTAR PLANILLAS PENDIENTES
+# ============================================================
+
+def listar_planillas_para_aprobacion():
+    """
+    Devuelve las planillas pendientes de aprobación que tengan
+    al menos una solicitud que todavía pueda procesarse.
+    """
+
+    conexion_db = conexion.conectar()
+
+    try:
+        with conexion_db.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    p.id,
+                    p.obra_id,
+                    o.nombre,
+                    p.fecha_compra,
+                    p.estado,
+                    p.observaciones,
+                    COUNT(s.id) FILTER (
+                        WHERE UPPER(TRIM(COALESCE(s.estado, '')))
+                            NOT IN (
+                                'COMPRADO Y RETIRADO',
+                                'ENTREGADO',
+                                'CANCELADA',
+                                'RECHAZADA'
+                            )
+                    ) AS cantidad_solicitudes,
+                    array_to_string(
+                        array_agg(
+                            DISTINCT NULLIF(
+                                TRIM(
+                                    COALESCE(per.nombre, '') || ' ' ||
+                                    COALESCE(per.apellido, '')
+                                ),
+                                ''
+                            )
+                        ) FILTER (WHERE per.id IS NOT NULL),
+                        ', '
+                    ) AS solicitantes
+                FROM planillas AS p
+                JOIN obras AS o
+                    ON o.id = p.obra_id
+                JOIN planilla_solicitudes AS ps
+                    ON ps.planilla_id = p.id
+                JOIN solicitudes AS s
+                    ON s.id = ps.solicitud_id
+                LEFT JOIN personas AS per
+                    ON per.id = s.persona_id
+                WHERE UPPER(TRIM(COALESCE(
+                    p.estado_aprobacion, 'PENDIENTE'
+                ))) = 'PENDIENTE'
+                GROUP BY
+                    p.id,
+                    p.obra_id,
+                    o.nombre,
+                    p.fecha_compra,
+                    p.estado,
+                    p.observaciones
+                HAVING COUNT(s.id) FILTER (
+                    WHERE UPPER(TRIM(COALESCE(s.estado, '')))
+                        NOT IN (
+                            'COMPRADO Y RETIRADO',
+                            'ENTREGADO',
+                            'CANCELADA',
+                            'RECHAZADA'
+                        )
+                ) > 0
+                ORDER BY p.fecha_compra DESC, o.nombre, p.id DESC;
+            """)
+
+            filas = cursor.fetchall()
+
+            return [
+                {
+                    "id": f[0],
+                    "obra_id": f[1],
+                    "obra": f[2],
+                    "fecha_compra": f[3],
+                    "estado": f[4],
+                    "observaciones": f[5],
+                    "cantidad_solicitudes": f[6],
+                    "solicitantes": f[7] or "",
+                }
+                for f in filas
+            ]
+
+    finally:
+        conexion_db.close()
+
+
+# ============================================================
+# APROBACIÓN: OBTENER DETALLE DE UNA PLANILLA
+# ============================================================
+
+def obtener_planilla_para_aprobacion(planilla_id):
+    """
+    Devuelve una planilla pendiente y sus solicitudes procesables.
+    """
+
+    conexion_db = conexion.conectar()
+
+    try:
+        with conexion_db.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    p.id,
+                    p.obra_id,
+                    o.nombre,
+                    p.fecha_compra,
+                    p.estado,
+                    p.observaciones
+                FROM planillas AS p
+                JOIN obras AS o
+                    ON o.id = p.obra_id
+                WHERE p.id = %s
+                  AND UPPER(TRIM(COALESCE(
+                      p.estado_aprobacion, 'PENDIENTE'
+                  ))) = 'PENDIENTE';
+            """, (planilla_id,))
+
+            planilla = cursor.fetchone()
+
+            if planilla is None:
+                return None
+
+            cursor.execute("""
+                SELECT
+                    s.id,
+                    s.producto_id,
+                    pr.nombre,
+                    pr.unidad,
+                    s.cantidad,
+                    s.area_id,
+                    a.nombre,
+                    s.observaciones,
+                    s.estado,
+                    s.fecha_solicitud,
+                    TRIM(
+                        COALESCE(pe.nombre, '') || ' ' ||
+                        COALESCE(pe.apellido, '')
+                    )
+                FROM planilla_solicitudes AS ps
+                JOIN solicitudes AS s
+                    ON s.id = ps.solicitud_id
+                JOIN productos AS pr
+                    ON pr.id = s.producto_id
+                JOIN areas AS a
+                    ON a.id = s.area_id
+                JOIN personas AS pe
+                    ON pe.id = s.persona_id
+                WHERE ps.planilla_id = %s
+                  AND UPPER(TRIM(COALESCE(s.estado, '')))
+                      NOT IN (
+                          'COMPRADO Y RETIRADO',
+                          'ENTREGADO',
+                          'CANCELADA',
+                          'RECHAZADA'
+                      )
+                ORDER BY s.fecha_solicitud, s.id;
+            """, (planilla_id,))
+
+            solicitudes = [
+                {
+                    "id": s[0],
+                    "producto_id": s[1],
+                    "producto": s[2],
+                    "unidad": s[3],
+                    "cantidad": s[4],
+                    "area_id": s[5],
+                    "area": s[6],
+                    "observaciones": s[7],
+                    "estado": s[8],
+                    "fecha_solicitud": s[9],
+                    "persona": s[10],
+                }
+                for s in cursor.fetchall()
+            ]
+
+            return {
+                "id": planilla[0],
+                "obra_id": planilla[1],
+                "obra": planilla[2],
+                "fecha_compra": planilla[3],
+                "estado": planilla[4],
+                "observaciones": planilla[5],
+                "solicitudes": solicitudes,
+            }
+
+    finally:
+        conexion_db.close()
+
+
+# ============================================================
+# APROBACIÓN: RESOLVER PLANILLA
+# ============================================================
+
+def resolver_aprobacion_planilla(
+    planilla_id,
+    solicitudes_ids,
+    decision,
+    motivo,
+    usuario_id
+):
+    """
+    RECHAZAR:
+        Rechaza únicamente las solicitudes seleccionadas.
+        La planilla sigue pendiente de aprobación.
+
+    APROBAR:
+        Pasa todas las solicitudes que no estén rechazadas ni
+        finalizadas a PENDIENTE DE COMPRA y marca la planilla
+        como APROBADA.
+
+    Todas las modificaciones se guardan en una única transacción.
+    """
+
+    decision = (decision or "").strip().upper()
+    motivo = (motivo or "").strip()
+
+    if decision not in ("APROBAR", "RECHAZAR"):
+        raise ValueError(
+            "La decisión debe ser APROBAR o RECHAZAR."
+        )
+
+    if decision == "RECHAZAR" and len(motivo) < 3:
+        raise ValueError(
+            "Para rechazar una solicitud, indicá un motivo."
+        )
+
+    if len(motivo) > 1000:
+        raise ValueError(
+            "El motivo no puede superar los 1000 caracteres."
+        )
+
+    try:
+        ids = list(dict.fromkeys(
+            int(x) for x in (solicitudes_ids or [])
+        ))
+    except (TypeError, ValueError):
+        raise ValueError(
+            "La selección de solicitudes no es válida."
+        )
+
+    if any(solicitud_id <= 0 for solicitud_id in ids):
+        raise ValueError(
+            "La selección contiene una solicitud no válida."
+        )
+
+    if decision == "RECHAZAR" and not ids:
+        raise ValueError(
+            "Seleccioná al menos una solicitud para rechazar."
+        )
+
+    conexion_db = conexion.conectar()
+
+    try:
+        with conexion_db.cursor() as cursor:
+
+            # Bloquear la planilla para evitar que dos administradores
+            # la procesen simultáneamente.
+            cursor.execute("""
+                SELECT estado_aprobacion
+                FROM planillas
+                WHERE id = %s
+                FOR UPDATE;
+            """, (planilla_id,))
+
+            fila_planilla = cursor.fetchone()
+
+            if fila_planilla is None:
+                raise ValueError(
+                    "No se encontró esa planilla."
+                )
+
+            estado_aprobacion = (
+                fila_planilla[0] or "PENDIENTE"
+            ).strip().upper()
+
+            if estado_aprobacion != "PENDIENTE":
+                raise ValueError(
+                    "La planilla ya fue procesada por un administrador."
+                )
+
+            # ----------------------------------------------------
+            # OPCIÓN 1: RECHAZAR SOLICITUDES SELECCIONADAS
+            # ----------------------------------------------------
+
+            if decision == "RECHAZAR":
+
+                cursor.execute("""
+                    SELECT s.id, s.estado
+                    FROM planilla_solicitudes AS ps
+                    JOIN solicitudes AS s
+                        ON s.id = ps.solicitud_id
+                    WHERE ps.planilla_id = %s
+                      AND s.id = ANY(%s)
+                    FOR UPDATE OF s;
+                """, (planilla_id, ids))
+
+                filas = cursor.fetchall()
+
+                if len(filas) != len(ids):
+                    raise ValueError(
+                        "Una o más solicitudes no pertenecen "
+                        "a esta planilla."
+                    )
+
+                estados_no_editables = {
+                    "COMPRADO Y RETIRADO",
+                    "ENTREGADO",
+                    "CANCELADA",
+                    "RECHAZADA",
+                }
+
+                for solicitud_id, estado in filas:
+                    estado_actual = (
+                        estado or ""
+                    ).strip().upper()
+
+                    if estado_actual in estados_no_editables:
+                        raise ValueError(
+                            f"La solicitud {solicitud_id} ya no "
+                            "se puede rechazar."
+                        )
+
+                for solicitud_id, _estado_anterior in filas:
+
+                    cursor.execute("""
+                        UPDATE solicitudes
+                        SET estado = 'RECHAZADA'
+                        WHERE id = %s;
+                    """, (solicitud_id,))
+
+                    cursor.execute("""
+                        INSERT INTO historial_solicitudes (
+                            solicitud_id,
+                            estado,
+                            fecha_hora,
+                            observaciones,
+                            usuario_id
+                        )
+                        VALUES (
+                            %s,
+                            'RECHAZADA',
+                            CURRENT_TIMESTAMP,
+                            %s,
+                            %s
+                        );
+                    """, (
+                        solicitud_id,
+                        f"Rechazada desde el teléfono: {motivo}",
+                        usuario_id,
+                    ))
+
+                # La planilla NO se aprueba todavía.
+                # El administrador puede rechazar otras solicitudes
+                # antes de presionar APROBAR PLANILLA.
+                resultado = {
+                    "planilla_id": planilla_id,
+                    "decision": "RECHAZAR",
+                    "solicitudes_procesadas": len(filas),
+                    "estado_aprobacion": "PENDIENTE",
+                }
+
+            # ----------------------------------------------------
+            # OPCIÓN 2: APROBAR TODA LA PLANILLA
+            # ----------------------------------------------------
+
+            else:
+
+                # Traer todas las solicitudes de la planilla,
+                # no solamente los IDs enviados por la pantalla.
+                cursor.execute("""
+                    SELECT s.id, s.estado
+                    FROM planilla_solicitudes AS ps
+                    JOIN solicitudes AS s
+                        ON s.id = ps.solicitud_id
+                    WHERE ps.planilla_id = %s
+                    FOR UPDATE OF s;
+                """, (planilla_id,))
+
+                filas = cursor.fetchall()
+
+                estados_finalizados = {
+                    "COMPRADO Y RETIRADO",
+                    "ENTREGADO",
+                    "CANCELADA",
+                    "RECHAZADA",
+                }
+
+                solicitudes_aprobadas = []
+
+                for solicitud_id, estado in filas:
+                    estado_actual = (
+                        estado or ""
+                    ).strip().upper()
+
+                    # Las rechazadas, entregadas, canceladas y
+                    # compradas y retiradas conservan su estado.
+                    if estado_actual in estados_finalizados:
+                        continue
+
+                    solicitudes_aprobadas.append(solicitud_id)
+
+                # Aprobar automáticamente todas las restantes.
+                for solicitud_id in solicitudes_aprobadas:
+
+                    cursor.execute("""
+                        UPDATE solicitudes
+                        SET estado = 'PENDIENTE DE COMPRA'
+                        WHERE id = %s;
+                    """, (solicitud_id,))
+
+                    cursor.execute("""
+                        INSERT INTO historial_solicitudes (
+                            solicitud_id,
+                            estado,
+                            fecha_hora,
+                            observaciones,
+                            usuario_id
+                        )
+                        VALUES (
+                            %s,
+                            'PENDIENTE DE COMPRA',
+                            CURRENT_TIMESTAMP,
+                            'Aprobada junto con la planilla desde el teléfono',
+                            %s
+                        );
+                    """, (
+                        solicitud_id,
+                        usuario_id,
+                    ))
+
+                # Marcar la planilla como aprobada.
+                cursor.execute("""
+                    UPDATE planillas
+                    SET estado_aprobacion = 'APROBADA',
+                        aprobada_por = %s,
+                        fecha_aprobacion = CURRENT_TIMESTAMP,
+                        motivo_aprobacion =
+                            'Planilla aprobada desde el teléfono'
+                    WHERE id = %s
+                      AND UPPER(TRIM(COALESCE(
+                          estado_aprobacion, 'PENDIENTE'
+                      ))) = 'PENDIENTE';
+                """, (
+                    usuario_id,
+                    planilla_id,
+                ))
+
+                if cursor.rowcount != 1:
+                    raise ValueError(
+                        "La planilla cambió de estado. "
+                        "Actualizá la pantalla."
+                    )
+
+                resultado = {
+                    "planilla_id": planilla_id,
+                    "decision": "APROBAR",
+                    "solicitudes_procesadas": len(
+                        solicitudes_aprobadas
+                    ),
+                    "estado_aprobacion": "APROBADA",
+                }
+
+        conexion_db.commit()
+
+        return resultado
 
     except Exception:
         conexion_db.rollback()

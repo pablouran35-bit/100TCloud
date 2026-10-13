@@ -72,6 +72,16 @@ def _fecha_hora_texto(valor):
     return str(valor or "")
 
 
+def _normalizar_estado(valor):
+    return (valor or "").strip().upper()
+
+
+def _planilla_aprobada(estado_aprobacion):
+    return _normalizar_estado(
+        estado_aprobacion
+    ) == "APROBADA"
+
+
 # ==========================================================
 # DÍA DE COMPRAS
 # ==========================================================
@@ -100,10 +110,6 @@ def martes_correspondiente(fecha_planilla):
     """
     Convierte la fecha almacenada en una planilla al martes
     de compra que le corresponde.
-
-    La PC puede guardar la fecha en que se creó la planilla,
-    mientras que Cloud puede guardar directamente la fecha
-    del próximo martes.
     """
 
     if fecha_planilla is None:
@@ -126,27 +132,9 @@ def listar_solicitudes_dia_compras():
     Devuelve las solicitudes que deben formar parte
     del Día de Compras.
 
-    REGLAS:
+    Solo se incluyen planillas aprobadas.
 
-    1. Solicitudes de planillas anteriores al Día de Compras:
-       solamente aparecen si todavía están pendientes.
-
-    2. Solicitudes de planillas correspondientes al
-       Día de Compras:
-       aparecen todas, sin importar su estado.
-
-    3. Solicitudes cuya última modificación de estado
-       ocurrió durante el Día de Compras:
-       también aparecen.
-
-    4. Las solicitudes CANCELADAS no aparecen.
-
-    5. Para solicitudes de fechas anteriores, los estados
-       considerados finalizados son:
-
-        COMPRADO Y RETIRADO
-        ENTREGADO
-        CANCELADA
+    Se excluyen siempre las solicitudes CANCELADA y RECHAZADA.
     """
 
     fecha_objetivo = fecha_dia_compras()
@@ -193,56 +181,49 @@ def listar_solicitudes_dia_compras():
                     ON um.solicitud_id = s.id
 
                 WHERE
-
                     UPPER(
-                        COALESCE(s.estado, '')
-                    ) <> 'CANCELADA'
+                        TRIM(COALESCE(
+                            p.estado_aprobacion,
+                            'PENDIENTE'
+                        ))
+                    ) = 'APROBADA'
 
-                    AND
+                    AND UPPER(
+                        TRIM(COALESCE(s.estado, ''))
+                    ) NOT IN (
+                        'CANCELADA',
+                        'RECHAZADA'
+                    )
 
-                    (
-
-                        -- ==================================
-                        -- 1. SOLICITUDES DEL DÍA DE COMPRAS
-                        -- ==================================
+                    AND (
                         (
                             p.fecha_compra::date = %s
                         )
 
                         OR
 
-                        -- ==================================
-                        -- 2. SOLICITUDES ANTERIORES
-                        --    QUE SIGUEN PENDIENTES
-                        -- ==================================
                         (
                             p.fecha_compra::date < %s
 
-                            AND
-
-                            UPPER(
-                                COALESCE(s.estado, '')
+                            AND UPPER(
+                                TRIM(COALESCE(s.estado, ''))
                             ) NOT IN (
                                 'COMPRADO Y RETIRADO',
                                 'ENTREGADO',
-                                'CANCELADA'
+                                'CANCELADA',
+                                'RECHAZADA'
                             )
                         )
 
                         OR
 
-                        -- ==================================
-                        -- 3. SOLICITUDES MODIFICADAS
-                        --    EL MISMO DÍA DE COMPRAS
-                        -- ==================================
                         (
                             um.ultima_fecha IS NOT NULL
 
-                            AND
-
-                            (
+                            AND (
                                 um.ultima_fecha
-                                AT TIME ZONE 'America/Argentina/Buenos_Aires'
+                                AT TIME ZONE
+                                'America/Argentina/Buenos_Aires'
                             )::date = %s
                         )
                     )
@@ -269,19 +250,14 @@ def listar_solicitudes_dia_compras():
                         fila[6]
                     ),
                     "ultima_modificacion":
-                        _fecha_hora_texto(
-                            fila[7]
-                        ),
+                        _fecha_hora_texto(fila[7]),
                 }
                 for fila in cursor.fetchall()
             ]
 
             return {
-                "fecha_compra":
-                    fecha_objetivo.isoformat(),
-
-                "solicitudes":
-                    solicitudes,
+                "fecha_compra": fecha_objetivo.isoformat(),
+                "solicitudes": solicitudes,
             }
 
     finally:
@@ -307,7 +283,7 @@ def obtener_proveedores_activos():
             return [
                 {
                     "id": fila[0],
-                    "nombre": fila[1]
+                    "nombre": fila[1],
                 }
                 for fila in cursor.fetchall()
             ]
@@ -331,6 +307,7 @@ def listar_planillas_compra():
                     o.nombre,
                     p.fecha_compra,
                     COUNT(s.id)
+
                 FROM planillas AS p
 
                 JOIN obras AS o
@@ -342,13 +319,22 @@ def listar_planillas_compra():
                 JOIN solicitudes AS s
                     ON s.id = ps.solicitud_id
 
-                WHERE UPPER(
-                    COALESCE(s.estado, '')
-                ) NOT IN (
-                    'COMPRADO Y RETIRADO',
-                    'ENTREGADO',
-                    'CANCELADA'
-                )
+                WHERE
+                    UPPER(
+                        TRIM(COALESCE(
+                            p.estado_aprobacion,
+                            'PENDIENTE'
+                        ))
+                    ) = 'APROBADA'
+
+                    AND UPPER(
+                        TRIM(COALESCE(s.estado, ''))
+                    ) NOT IN (
+                        'COMPRADO Y RETIRADO',
+                        'ENTREGADO',
+                        'CANCELADA',
+                        'RECHAZADA'
+                    )
 
                 GROUP BY
                     p.id,
@@ -362,10 +348,8 @@ def listar_planillas_compra():
                 {
                     "id": fila[0],
                     "obra": fila[1],
-                    "fecha_compra": _fecha_texto(
-                        fila[2]
-                    ),
-                    "solicitudes": fila[3]
+                    "fecha_compra": _fecha_texto(fila[2]),
+                    "solicitudes": fila[3],
                 }
                 for fila in cursor.fetchall()
             ]
@@ -384,12 +368,20 @@ def obtener_planilla_compra(planilla_id):
                     p.id,
                     o.nombre,
                     p.fecha_compra
+
                 FROM planillas AS p
 
                 JOIN obras AS o
                     ON o.id = p.obra_id
 
-                WHERE p.id = %s;
+                WHERE p.id = %s
+
+                  AND UPPER(
+                      TRIM(COALESCE(
+                          p.estado_aprobacion,
+                          'PENDIENTE'
+                      ))
+                  ) = 'APROBADA';
             """, (planilla_id,))
 
             planilla = cursor.fetchone()
@@ -406,6 +398,7 @@ def obtener_planilla_compra(planilla_id):
                     s.proveedor_id,
                     pv.nombre,
                     s.observaciones
+
                 FROM planilla_solicitudes AS ps
 
                 JOIN solicitudes AS s
@@ -420,11 +413,12 @@ def obtener_planilla_compra(planilla_id):
                 WHERE ps.planilla_id = %s
 
                   AND UPPER(
-                      COALESCE(s.estado, '')
+                      TRIM(COALESCE(s.estado, ''))
                   ) NOT IN (
                       'COMPRADO Y RETIRADO',
                       'ENTREGADO',
-                      'CANCELADA'
+                      'CANCELADA',
+                      'RECHAZADA'
                   )
 
                 ORDER BY s.id;
@@ -448,6 +442,7 @@ def obtener_planilla_compra(planilla_id):
                         hs.solicitud_id,
                         hs.fecha_hora,
                         hs.estado,
+
                         COALESCE(
                             NULLIF(
                                 TRIM(
@@ -458,7 +453,9 @@ def obtener_planilla_compra(planilla_id):
                             u.usuario,
                             'Usuario no disponible'
                         ),
+
                         hs.observaciones
+
                     FROM historial_solicitudes AS hs
 
                     LEFT JOIN usuarios AS u
@@ -473,26 +470,19 @@ def obtener_planilla_compra(planilla_id):
                 """, (ids,))
 
                 for registro in cursor.fetchall():
-                    historiales[
-                        registro[0]
-                    ].append({
-                        "fecha_hora":
-                            _fecha_hora_texto(
-                                registro[1]
-                            ),
-                        "estado":
-                            registro[2],
-                        "usuario":
-                            registro[3],
-                        "observaciones":
-                            registro[4] or "",
+                    historiales[registro[0]].append({
+                        "fecha_hora": _fecha_hora_texto(
+                            registro[1]
+                        ),
+                        "estado": registro[2],
+                        "usuario": registro[3],
+                        "observaciones": registro[4] or "",
                     })
 
             return {
                 "id": planilla[0],
                 "obra": planilla[1],
-                "fecha_compra":
-                    _fecha_texto(planilla[2]),
+                "fecha_compra": _fecha_texto(planilla[2]),
                 "solicitudes": [
                     {
                         "id": fila[0],
@@ -501,10 +491,8 @@ def obtener_planilla_compra(planilla_id):
                         "estado": fila[3],
                         "proveedor_id": fila[4],
                         "proveedor": fila[5] or "",
-                        "observaciones":
-                            fila[6] or "",
-                        "historial":
-                            historiales[fila[0]],
+                        "observaciones": fila[6] or "",
+                        "historial": historiales[fila[0]],
                     }
                     for fila in solicitudes
                 ],
@@ -529,17 +517,22 @@ def actualizar_solicitud_compra(
     fecha_operacion=None
 ):
     """
-    Gestión NORMAL/ONLINE de una solicitud de compra.
+    Actualiza una solicitud desde Compras.
 
-    Puede modificar:
-    - estado
-    - proveedor
-    - observaciones
-
-    Esta función se mantiene para el funcionamiento online.
-    Los cambios offline de estado utilizan
-    actualizar_estado_solicitud_compra().
+    Protecciones:
+    - La planilla debe estar aprobada.
+    - No se permite modificar solicitudes rechazadas.
+    - No se permite modificar solicitudes canceladas.
+    - Se conserva el registro de operaciones offline.
     """
+
+    estado_solicitado = _normalizar_estado(estado)
+
+    if estado_solicitado == "RECHAZADA":
+        raise ValueError(
+            "El estado RECHAZADA solo puede establecerse "
+            "mediante el proceso de aprobación de planillas."
+        )
 
     conexion_db = conexion.conectar()
 
@@ -556,32 +549,59 @@ def actualizar_solicitud_compra(
                 return repetida
 
             cursor.execute("""
-                SELECT s.estado
+                SELECT
+                    s.estado,
+                    p.estado_aprobacion
+
                 FROM solicitudes AS s
 
                 JOIN planilla_solicitudes AS ps
                     ON ps.solicitud_id = s.id
 
+                JOIN planillas AS p
+                    ON p.id = ps.planilla_id
+
                 WHERE ps.planilla_id = %s
                   AND s.id = %s
 
-                FOR UPDATE OF s;
+                FOR UPDATE OF s, p;
             """, (
                 planilla_id,
-                solicitud_id
+                solicitud_id,
             ))
 
             fila = cursor.fetchone()
 
             if fila is None:
-                return False
+                raise ValueError(
+                    "No se encontró esa solicitud "
+                    "dentro de la planilla."
+                )
 
-            if (
-                fila[0] or ""
-            ).upper() == "CANCELADA":
+            estado_actual = _normalizar_estado(fila[0])
+
+            if not _planilla_aprobada(fila[1]):
+                raise ValueError(
+                    "La planilla no está aprobada. "
+                    "No se puede gestionar esta solicitud."
+                )
+
+            if estado_actual == "RECHAZADA":
+                raise ValueError(
+                    "La solicitud fue rechazada y no se puede "
+                    "reactivar desde Compras."
+                )
+
+            if estado_actual == "CANCELADA":
                 raise ValueError(
                     "La solicitud está cancelada "
                     "y no se puede gestionar."
+                )
+
+            if estado_actual == "ENTREGADO":
+                raise ValueError(
+                    "La solicitud ya fue entregada "
+                    "y no se puede modificar."
                 )
 
             if proveedor_id is not None:
@@ -608,7 +628,7 @@ def actualizar_solicitud_compra(
                 estado,
                 proveedor_id,
                 observaciones,
-                solicitud_id
+                solicitud_id,
             ))
 
             cursor.execute("""
@@ -632,7 +652,7 @@ def actualizar_solicitud_compra(
                 estado,
                 fecha_operacion,
                 observaciones,
-                usuario_id
+                usuario_id,
             ))
 
             offlinecloud.finalizar_operacion(
@@ -667,31 +687,32 @@ def actualizar_estado_solicitud_compra(
     fecha_operacion=None
 ):
     """
-    Cambia SOLAMENTE el estado de una solicitud.
+    Cambia solamente el estado de una solicitud desde una
+    operación offline.
 
-    Esta función está pensada especialmente para operaciones
-    realizadas sin conexión.
+    Antes de actualizar:
+    - Comprueba que la planilla siga aprobada.
+    - Impide modificar una solicitud rechazada.
+    - Comprueba que el estado de Cloud coincida con el
+      estado anterior informado por el dispositivo.
 
-    El dispositivo informa:
-        estado_anterior = estado que tenía cuando se desconectó
-        estado_nuevo    = estado elegido sin conexión
-
-    Cloud compara estado_anterior con el estado actual.
-
-    Si coinciden:
-        aplica el cambio.
-
-    Si no coinciden:
-        genera ConflictoSolicitudCompra y NO modifica nada.
+    Si hay conflicto, no sobrescribe el estado de Cloud.
     """
 
-    estado_nuevo = (
-        estado_nuevo or ""
-    ).strip().upper()
+    estado_nuevo = _normalizar_estado(estado_nuevo)
+    estado_anterior = _normalizar_estado(estado_anterior)
 
-    estado_anterior = (
-        estado_anterior or ""
-    ).strip().upper()
+    if estado_anterior == "RECHAZADA":
+        raise ValueError(
+            "La solicitud fue rechazada y no se puede "
+            "reactivar mediante una operación offline."
+        )
+
+    if estado_nuevo == "RECHAZADA":
+        raise ValueError(
+            "El estado RECHAZADA solo puede establecerse "
+            "mediante el proceso de aprobación de planillas."
+        )
 
     if estado_nuevo not in ESTADOS_SOLICITUD:
         raise ValueError(
@@ -726,19 +747,25 @@ def actualizar_estado_solicitud_compra(
                 return repetida
 
             cursor.execute("""
-                SELECT s.estado
+                SELECT
+                    s.estado,
+                    p.estado_aprobacion
+
                 FROM planilla_solicitudes AS ps
 
                 JOIN solicitudes AS s
                     ON s.id = ps.solicitud_id
 
+                JOIN planillas AS p
+                    ON p.id = ps.planilla_id
+
                 WHERE ps.planilla_id = %s
                   AND s.id = %s
 
-                FOR UPDATE OF s;
+                FOR UPDATE OF s, p;
             """, (
                 planilla_id,
-                solicitud_id
+                solicitud_id,
             ))
 
             fila = cursor.fetchone()
@@ -749,9 +776,21 @@ def actualizar_estado_solicitud_compra(
                     "dentro de la planilla."
                 )
 
-            estado_cloud = (
+            if not _planilla_aprobada(fila[1]):
+                raise ValueError(
+                    "La planilla no está aprobada. "
+                    "No se puede modificar esta solicitud."
+                )
+
+            estado_cloud = _normalizar_estado(
                 fila[0] or "PENDIENTE DE COMPRA"
-            ).strip().upper()
+            )
+
+            if estado_cloud == "RECHAZADA":
+                raise ValueError(
+                    "La solicitud fue rechazada y no se puede "
+                    "modificar ni reactivar desde Compras."
+                )
 
             # --------------------------------------------------
             # DETECCIÓN DE CONFLICTO
@@ -782,7 +821,7 @@ def actualizar_estado_solicitud_compra(
                 WHERE id = %s;
             """, (
                 estado_nuevo,
-                solicitud_id
+                solicitud_id,
             ))
 
             cursor.execute("""
@@ -804,7 +843,7 @@ def actualizar_estado_solicitud_compra(
                 solicitud_id,
                 estado_nuevo,
                 fecha_operacion,
-                usuario_id
+                usuario_id,
             ))
 
             offlinecloud.finalizar_operacion(
@@ -843,6 +882,7 @@ def listar_tareas_compra():
                     t.observaciones,
                     p.nombre,
                     p.apellido
+
                 FROM tareas AS t
 
                 LEFT JOIN personas AS p
@@ -858,14 +898,13 @@ def listar_tareas_compra():
                 {
                     "id": fila[0],
                     "descripcion": fila[1],
-                    "fecha_solicitud":
-                        _fecha_texto(fila[2]),
+                    "fecha_solicitud": _fecha_texto(fila[2]),
                     "estado": fila[3],
-                    "observaciones":
-                        fila[4] or "",
-                    "solicitante":
+                    "observaciones": fila[4] or "",
+                    "solicitante": (
                         f"{fila[5] or ''} "
-                        f"{fila[6] or ''}".strip(),
+                        f"{fila[6] or ''}"
+                    ).strip(),
                 }
                 for fila in cursor.fetchall()
             ]
@@ -888,6 +927,7 @@ def obtener_tarea_compra(tarea_id):
                     t.observaciones,
                     p.nombre,
                     p.apellido
+
                 FROM tareas AS t
 
                 LEFT JOIN personas AS p
@@ -907,6 +947,7 @@ def obtener_tarea_compra(tarea_id):
                 SELECT
                     ht.fecha_hora,
                     ht.estado,
+
                     COALESCE(
                         NULLIF(
                             TRIM(
@@ -917,7 +958,9 @@ def obtener_tarea_compra(tarea_id):
                         u.usuario,
                         'Usuario no disponible'
                     ),
+
                     ht.observaciones
+
                 FROM historial_tareas AS ht
 
                 LEFT JOIN usuarios AS u
@@ -933,14 +976,10 @@ def obtener_tarea_compra(tarea_id):
 
             historial = [
                 {
-                    "fecha_hora":
-                        _fecha_hora_texto(r[0]),
-                    "estado":
-                        r[1],
-                    "usuario":
-                        r[2],
-                    "observaciones":
-                        r[3] or "",
+                    "fecha_hora": _fecha_hora_texto(r[0]),
+                    "estado": r[1],
+                    "usuario": r[2],
+                    "observaciones": r[3] or "",
                 }
                 for r in cursor.fetchall()
             ]
@@ -948,16 +987,14 @@ def obtener_tarea_compra(tarea_id):
             return {
                 "id": fila[0],
                 "descripcion": fila[1],
-                "fecha_solicitud":
-                    _fecha_texto(fila[2]),
+                "fecha_solicitud": _fecha_texto(fila[2]),
                 "estado": fila[3],
-                "observaciones":
-                    fila[4] or "",
-                "solicitante":
+                "observaciones": fila[4] or "",
+                "solicitante": (
                     f"{fila[5] or ''} "
-                    f"{fila[6] or ''}".strip(),
-                "historial":
-                    historial,
+                    f"{fila[6] or ''}"
+                ).strip(),
+                "historial": historial,
             }
 
     finally:
@@ -990,13 +1027,14 @@ def actualizar_tarea_compra(
                 UPDATE tareas
                 SET estado = %s,
                     observaciones = %s
+
                 WHERE id = %s
                   AND UPPER(estado)
                       IN ('PENDIENTE', 'EN PROCESO');
             """, (
                 estado,
                 observaciones,
-                tarea_id
+                tarea_id,
             ))
 
             if cursor.rowcount == 0:
@@ -1023,7 +1061,7 @@ def actualizar_tarea_compra(
                 estado,
                 fecha_operacion,
                 observaciones,
-                usuario_id
+                usuario_id,
             ))
 
             offlinecloud.finalizar_operacion(
