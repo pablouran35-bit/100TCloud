@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v3";
+const CACHE_NAME = "100tcompras-shell-v4";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
