@@ -17,4 +17,5 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # ==========================================================
 
 def conectar():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL, connect_timeout=10, keepalives=1,
+                            keepalives_idle=15, keepalives_interval=5, keepalives_count=3)

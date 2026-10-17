@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from planillas_api import identidad_actual, es_contratista
@@ -44,8 +44,10 @@ class DatosComunicacion(BaseModel):
 
 @router.get("")
 def listar_comunicaciones(
+    response: Response,
     _identidad=Depends(identidad_bloc_notas)
 ):
+    response.headers["Cache-Control"] = "no-store, private"
     return bloc_notascloud.listar_comunicaciones()
 
 
@@ -94,3 +96,31 @@ def agregar_comunicacion(
         "id": comunicacion_id,
         "mensaje": "Comunicación agregada correctamente."
     }
+
+@router.get('/eventos')
+async def eventos_comunicaciones(_identidad=Depends(identidad_bloc_notas)):
+    import asyncio
+    import json
+    from queue import Empty
+    from fastapi.responses import StreamingResponse
+    import bloc_eventos
+
+    async def eventos():
+        cola = bloc_eventos.suscribir()
+        try:
+            yield 'data: {"tipo":"conectado"}\n\n'
+            # La sesión se vuelve a validar al reconectar cada cinco minutos.
+            limite = asyncio.get_running_loop().time() + 300
+            while asyncio.get_running_loop().time() < limite:
+                try:
+                    evento = await asyncio.to_thread(cola.get, True, 15)
+                except Empty:
+                    yield ': mantener conexion\n\n'
+                else:
+                    yield 'data: ' + json.dumps(evento) + '\n\n'
+        finally:
+            bloc_eventos.desuscribir(cola)
+
+    return StreamingResponse(eventos(), media_type='text/event-stream', headers={
+        'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'
+    })

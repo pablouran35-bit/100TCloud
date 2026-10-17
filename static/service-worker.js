@@ -1,7 +1,10 @@
-const CACHE_NAME = "100tcompras-shell-v4";
+const CACHE_NAME = "100tcompras-shell-v5";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
+  "/app/bloc_notas.html",
+  "/app/bloc_notas.js",
+  "/app/comunicaciones-eventos.js",
   "/app/manifest.webmanifest",
   "/app/icon.svg",
   "/app/offline.js",
@@ -54,7 +57,13 @@ self.addEventListener("fetch", (evento) => {
   }
 
   evento.respondWith(
-    caches.match(solicitud).then((guardada) => guardada || fetch(solicitud))
+    fetch(solicitud).then(async (respuesta) => {
+      if (respuesta.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(solicitud, respuesta.clone());
+      }
+      return respuesta;
+    }).catch(() => caches.match(solicitud))
   );
 });
 

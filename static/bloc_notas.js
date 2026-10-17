@@ -107,6 +107,8 @@ async function obtenerRespuestaAPI(url, opciones = {}) {
 
   const respuesta = await fetch(url, {
     ...opciones,
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
     headers: encabezados
   });
 
@@ -143,20 +145,36 @@ async function obtenerRespuestaAPI(url, opciones = {}) {
    CARGAR COMUNICACIONES
    ========================================================== */
 
-async function cargarComunicaciones() {
-  historial.innerHTML = `
+let cargaPendiente = null;
+let ultimaVersion = null;
+
+function cargarComunicaciones() {
+  if (cargaPendiente) return cargaPendiente;
+  cargaPendiente = actualizarComunicaciones().finally(() => { cargaPendiente = null; });
+  return cargaPendiente;
+}
+
+async function actualizarComunicaciones() {
+  if (ultimaVersion === null) historial.innerHTML = `
     <div class="estado-cargando">
       Cargando comunicaciones...
     </div>
   `;
-
-  mostrarMensaje("");
 
   try {
     const comunicaciones = await obtenerRespuestaAPI(
       "/bloc-notas"
     );
 
+    const version = JSON.stringify(comunicaciones);
+    const hoyArgentina = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "America/Argentina/Buenos_Aires"
+    }).format(new Date());
+    fechaActual.textContent = formatearFecha(hoyArgentina);
+    if (version === ultimaVersion) return;
+    ultimaVersion = version;
+    const posicion = historial.scrollTop;
+    const alFinal = historial.scrollHeight - historial.clientHeight - posicion < 30;
     historial.innerHTML = "";
 
     if (
@@ -209,10 +227,11 @@ async function cargarComunicaciones() {
 
       historial.appendChild(tarjeta);
     });
+    historial.scrollTop = alFinal ? historial.scrollHeight : posicion;
 
   } catch (error) {
 
-    historial.innerHTML = `
+    if (ultimaVersion === null) historial.innerHTML = `
       <div class="sin-comunicaciones">
         No se pudieron cargar las comunicaciones.
       </div>
@@ -231,6 +250,7 @@ async function cargarComunicaciones() {
    ========================================================== */
 
 async function agregarComunicacion() {
+  if (botonAgregar.disabled) return;
   const texto = textoComunicacion.value.trim();
 
   if (!texto) {
@@ -280,6 +300,7 @@ async function agregarComunicacion() {
       "Comunicación agregada correctamente."
     );
 
+    if (cargaPendiente) await cargaPendiente;
     await cargarComunicaciones();
 
     textoComunicacion.focus();
@@ -388,3 +409,11 @@ fechaActual.textContent =
   }).format(hoy);
 
 cargarComunicaciones();
+
+window.addEventListener('100t:comunicacion', cargarComunicaciones);
+window.addEventListener('100t:reconectado', cargarComunicaciones);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) cargarComunicaciones();
+});
+window.addEventListener('online', cargarComunicaciones);
+window.addEventListener('pageshow', cargarComunicaciones);
