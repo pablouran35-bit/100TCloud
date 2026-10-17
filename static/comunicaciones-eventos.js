@@ -4,12 +4,18 @@
   let reintento = null;
   const vistos = new Set();
   let inicializado = false;
+  let usuarioActivo = null;
+  function guardarVistos() {
+    if (usuarioActivo === null) return;
+    sessionStorage.setItem('100t-avisos-' + usuarioActivo, JSON.stringify([...vistos]));
+  }
 
   function avisar(evento) {
     const usuario = JSON.parse(sessionStorage.getItem('usuario') || '{}');
     if (!sessionStorage.getItem('token') || vistos.has(evento.id)) return;
     vistos.add(evento.id);
     if (vistos.size > 500) vistos.delete(vistos.values().next().value);
+    guardarVistos();
     window.dispatchEvent(new CustomEvent('100t:comunicacion', {detail: evento}));
     if (String(evento.usuario_id) === String(usuario.id)) return;
     let aviso = document.getElementById('aviso-comunicacion-100t');
@@ -36,6 +42,7 @@
       if (!inicializado) {
         filas.forEach(fila => vistos.add(fila.id));
         inicializado = true;
+        guardarVistos();
       } else {
         filas.forEach(avisar);
       }
@@ -99,10 +106,20 @@
       controlador = null;
       tokenActivo = '';
       inicializado = false;
+      usuarioActivo = null;
       vistos.clear();
       clearTimeout(reintento);
       document.getElementById('aviso-comunicacion-100t')?.remove();
       return;
+    }
+    if (String(usuario.id) !== usuarioActivo) {
+      usuarioActivo = String(usuario.id);
+      vistos.clear();
+      const guardados = sessionStorage.getItem('100t-avisos-' + usuarioActivo);
+      try {
+        JSON.parse(guardados || '[]').forEach(id => vistos.add(id));
+        inicializado = guardados !== null && guardados !== undefined;
+      } catch (_) { inicializado = false; }
     }
     if (token !== tokenActivo) {
       controlador?.abort();
