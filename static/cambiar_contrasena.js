@@ -35,6 +35,7 @@ formulario.addEventListener("submit", async (evento) => {
     if (!respuesta.ok) throw new Error(datos.detail || `Error ${respuesta.status}`);
     mensaje.textContent = "Contraseña cambiada. Volvé a ingresar con la nueva contraseña.";
     mensaje.style.color = "#276341";
+    localStorage.removeItem('100t-sesion-dispositivo');
     sessionStorage.clear();
     setTimeout(() => window.location.replace("/app/"), 1200);
   } catch (error) {

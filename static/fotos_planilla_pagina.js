@@ -8,8 +8,7 @@
   if(!Number.isInteger(id)||id<1){document.getElementById('info-fotos-planilla').textContent='Elegí una planilla válida desde Entregas o Planillas existentes.';document.getElementById('fotos-planilla').hidden=true;return;}
   (async()=>{
     try{
-      const r=await fetch(`/entregas/${id}`,{cache:'no-store',headers:{Authorization:'Bearer '+token}}),d=await r.json();
-      if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'No se pudo consultar la planilla.');
+      const d=await window.offline100t.solicitarApi(`/entregas/${id}`,{},token);
       document.getElementById('titulo-fotos-planilla').textContent=`Planilla N.º ${d.id} · ${d.obra}`;
       document.getElementById('info-fotos-planilla').textContent='Las fotos pertenecen a esta planilla completa.';
       window.fotosEntrega.abrir(id);

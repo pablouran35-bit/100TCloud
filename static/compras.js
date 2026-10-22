@@ -1790,14 +1790,10 @@ document.getElementById('formulario-lote').onsubmit=async evento=>{
   mensaje('mensaje-solicitudes-compra','Guardando selección...');
   let guardado=false;
   try{
-    const respuesta=await fetch(`/compras/planillas/${idPlanilla}/lote`,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','Idempotency-Key':operacionLote.id},body:cuerpo});
-    const resultado=await respuesta.json();
-    if(!respuesta.ok)throw Error(typeof resultado.detail==='string'?resultado.detail:'No se pudieron guardar los cambios.');
+    const resultado=await llamarApi(`/compras/planillas/${idPlanilla}/lote`,{method:'PUT',headers:{'Idempotency-Key':operacionLote.id},body:cuerpo});
     guardado=true;seleccionCompras.clear();operacionLote=null;actualizarSeleccionCompras();
     // Obtener desde la red: evita mostrar el detalle anterior del caché offline.
-    const nueva=await fetch(`/compras/planillas/${idPlanilla}`,{cache:'no-store',headers:{Authorization:'Bearer '+token}});
-    if(!nueva.ok)throw Error('Recargá la planilla para ver su estado actual.');
-    planillaActual=await nueva.json();mostrarSolicitudes();mensaje('mensaje-solicitudes-compra',resultado.mensaje);
+    planillaActual=await llamarApi(`/compras/planillas/${idPlanilla}`);mostrarSolicitudes();mensaje('mensaje-solicitudes-compra',resultado.mensaje);
     // La lista de planillas también debe reflejar las solicitudes resueltas.
     await Promise.all([cargarPlanillas(),cargarDiaCompras()]);
   }catch(e){mensaje('mensaje-solicitudes-compra',guardado?'Los cambios se guardaron. '+e.message:e.message+' Si se interrumpió la conexión, podés reintentar el mismo guardado.',true);}

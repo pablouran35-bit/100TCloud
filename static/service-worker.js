@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v9-selector-fotos";
+const CACHE_NAME = "100tcompras-shell-v10-offline";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
@@ -9,6 +9,10 @@ const APP_FILES = [
   "/app/icon.svg",
   "/app/offline.js",
   "/app/offline-db.js",
+  "/app/offline-session.js",
+  "/app/offline-extra.js",
+  "/app/sin-conexion.html",
+  "/app/sin-conexion.js",
   "/app/planillas.html",
   "/app/planillas.js",
   "/app/tareas.html",
@@ -52,8 +56,8 @@ self.addEventListener("fetch", (evento) => {
 
   if (solicitud.mode === "navigate") {
     evento.respondWith(
-      fetch(solicitud).catch(async () => {
-        const guardada = await caches.match(solicitud);
+      fetch(solicitud).then(r => {if(!r.ok)throw Error('Servidor no disponible');return r;}).catch(async () => {
+        const guardada = await caches.match(solicitud) || await caches.match(url.pathname);
         return guardada || caches.match("/app/index.html");
       })
     );

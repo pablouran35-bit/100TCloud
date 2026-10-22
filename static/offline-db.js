@@ -462,18 +462,7 @@
           );
         }
 
-        const resultadoLocal =
-          await guardarCambioLocal(
-            operacion,
-            usuario
-          );
-
-        await this.guardarPendiente({
-          ...operacion,
-          local_output_id:
-            resultadoLocal.local_output_id ||
-            null,
-        });
+        const resultadoLocal = await encolarCambio(operacion, usuario);
 
         window.dispatchEvent(
           new CustomEvent(
@@ -500,18 +489,7 @@
           ).catch(() => []);
 
         if (yaPendientes.length) {
-          const resultadoLocal =
-            await guardarCambioLocal(
-              operacion,
-              usuario
-            );
-
-          await this.guardarPendiente({
-            ...operacion,
-            local_output_id:
-              resultadoLocal.local_output_id ||
-              null,
-          });
+          const resultadoLocal = await encolarCambio(operacion, usuario);
 
           window.dispatchEvent(
             new CustomEvent(
@@ -537,6 +515,7 @@
           direccion,
           {
             ...opciones,
+            signal: opciones.signal || AbortSignal.timeout(20000),
             headers: cabeceras,
           }
         );
@@ -597,18 +576,7 @@
         }
 
 
-        const resultadoLocal =
-          await guardarCambioLocal(
-            operacion,
-            usuario
-          );
-
-        await this.guardarPendiente({
-          ...operacion,
-          local_output_id:
-            resultadoLocal.local_output_id ||
-            null,
-        });
+        const resultadoLocal = await encolarCambio(operacion, usuario);
 
         window.dispatchEvent(
           new CustomEvent(
@@ -626,8 +594,18 @@
        * ------------------------------------------------------------
        */
 
-      const texto =
-        await respuesta.text();
+      let texto;
+      try { texto = await respuesta.text(); }
+      catch {
+        if (operacion && usuario.id) {
+          const local = await encolarCambio(operacion, usuario);
+          window.dispatchEvent(new CustomEvent('100t:cambios-pendientes'));
+          return local.respuesta;
+        }
+        const copia = usuario.id ? await this.leerDato(`respuesta:${url}`,usuario.id) : null;
+        if (copia !== null) return copia;
+        throw Error('La conexión se interrumpió al recibir los datos. Reintentá con conexión.');
+      }
 
       let datos = {};
 
@@ -644,10 +622,7 @@
 
 
       if (!respuesta.ok) {
-        throw new Error(
-          datos.detail ||
-          `Error ${respuesta.status}`
-        );
+        throw Object.assign(new Error(typeof datos.detail === 'string' ? datos.detail : (datos.detail?.mensaje || `Error ${respuesta.status}`)), {status:respuesta.status});
       }
 
 
@@ -687,7 +662,10 @@
      * ------------------------------------------------------------
      */
 
-    async sincronizarPendientes(token) {
+    async sincronizarPendientes(token, conBloqueo = false) {
+      if (!conBloqueo && navigator.locks) {
+        return navigator.locks.request('100t-operaciones', () => this.sincronizarPendientes(token, true));
+      }
       const usuario = objetoJson(
         sessionStorage.getItem("usuario")
       );
@@ -741,11 +719,12 @@
               url,
               {
                 method: operacion.method,
+                signal: AbortSignal.timeout(20000),
                 headers: {
                   Authorization:
                     `Bearer ${token}`,
                   "Content-Type":
-                    "application/json",
+                    operacion.content_type || "application/json",
                   "Idempotency-Key":
                     operacion.operacion_id,
                   "X-Offline-Created-At":
@@ -1018,9 +997,44 @@
   }
 
 
+  async function reflejarEnEntregas(api, usuarioId, planilla, solicitudes) {
+    const clave = `respuesta:/entregas/${planilla.id}`;
+    let entrega = await api.leerDato(clave, usuarioId) || {...planilla,solicitudes:[]};
+    for (const solicitud of solicitudes) {
+      entrega.solicitudes = entrega.solicitudes.filter(s => s.id !== solicitud.id);
+      if (['COMPRADO Y RETIRADO','COMPRADO A ENTREGAR POR PROVEEDOR/FLETE'].includes(solicitud.estado)) entrega.solicitudes.push(structuredClone(solicitud));
+    }
+    await api.guardarDato(clave, entrega, usuarioId);
+    const filas = await api.leerDato('respuesta:/entregas',usuarioId) || [];
+    if (!filas.some(p=>p.id===planilla.id)) filas.push({id:planilla.id,obra:planilla.obra,fecha_compra:planilla.fecha_compra,disponibles:entrega.solicitudes.length});
+    await api.guardarDato('respuesta:/entregas',filas,usuarioId);
+  }
+
+  async function encolarCambio(operacion, usuario) {
+    const cambios = new Map();
+    const base = window.offline100t;
+    const adaptador = Object.create(base);
+    adaptador.leerDato = async (clave, uid) => cambios.has(clave) ? structuredClone(cambios.get(clave)) : base.leerDato(clave, uid);
+    adaptador.guardarDato = async (clave, valor) => { cambios.set(clave, structuredClone(valor)); };
+    const resultado = await guardarCambioLocal(operacion, usuario, adaptador);
+    const anteriores = await base.listarPendientes(usuario.id);
+    const registro = {...operacion, local_output_id:resultado.local_output_id || null,
+      estado:'PENDIENTE', orden:Math.max(Date.now(), ...anteriores.map(p=>(p.orden || 0)+1)),intentos:0};
+    const db = await abrir();
+    await new Promise((ok,no) => {
+      const tx = db.transaction(['datos_locales','pendientes'],'readwrite');
+      tx.objectStore('pendientes').put(registro);
+      for (const [clave,valor] of cambios) tx.objectStore('datos_locales').put({clave:`${usuario.id}:${clave}`,usuario_id:usuario.id,actualizado_en:new Date().toISOString(),valor});
+      tx.oncomplete=()=>{db.close();ok();};
+      tx.onerror=tx.onabort=()=>{db.close();no(tx.error || Error('No se pudo guardar en el teléfono.'));};
+    });
+    return resultado;
+  }
+
   async function guardarCambioLocal(
     operacion,
-    usuario
+    usuario,
+    api = window.offline100t
   ) {
     const cuerpo =
       objetoJson(operacion.body);
@@ -1620,6 +1634,7 @@
        * En Compras algunos estados hacen que la solicitud
        * deje de aparecer en la lista de compras pendientes.
        */
+      await reflejarEnEntregas(api, usuario.id, planilla, [solicitud]);
       if (
         [
           "COMPRADO Y RETIRADO",
@@ -1660,6 +1675,29 @@
      * El PUT anterior permite proveedor + observaciones.
      * Eso NO puede hacerse offline.
      */
+
+    const lote = operacion.url.match(/^\/compras\/planillas\/(\d+)\/lote$/);
+    if (operacion.method === 'PUT' && lote) {
+      const clave = `respuesta:/compras/planillas/${lote[1]}`;
+      const planilla = await api.leerDato(clave, usuario.id);
+      if (!planilla) throw Error('Prepará esta planilla con conexión antes de modificarla.');
+      const inicial = await api.leerDato('respuesta:/compras/inicial', usuario.id);
+      const proveedor = (inicial?.proveedores || []).find(p => p.id === cuerpo.proveedor_id);
+      for (const anterior of cuerpo.solicitudes) {
+        const fila = planilla.solicitudes.find(s => s.id === anterior.id);
+        if (!fila || fila.estado !== anterior.estado_anterior || (fila.proveedor_id ?? null) !== anterior.proveedor_anterior)
+          throw Error('La selección cambió. Volvé a abrir la planilla antes de guardar.');
+      }
+      for (const anterior of cuerpo.solicitudes) {
+        const fila = planilla.solicitudes.find(s => s.id === anterior.id);
+        fila.estado = cuerpo.estado; fila.proveedor_id = cuerpo.proveedor_id;
+        fila.proveedor = proveedor?.nombre || null;
+        fila.historial = [...(fila.historial || []), {estado:cuerpo.estado, fecha_hora:ahora, usuario:nombreUsuario, observaciones:'Cambio conjunto pendiente de sincronización'}];
+      }
+      await reflejarEnEntregas(api, usuario.id, planilla, planilla.solicitudes.filter(s=>cuerpo.solicitudes.some(r=>r.id===s.id)));
+      await api.guardarDato(clave, planilla, usuario.id);
+      return {respuesta:{pendiente:true, mensaje:'Selección guardada en este teléfono; se enviará al recuperar conexión.'}};
+    }
 
     const compraSolicitudOnline =
       operacion.url.match(
@@ -1911,8 +1949,7 @@
       );
 
     if (
-      coincidencia &&
-      esIdLocal(coincidencia[1])
+      coincidencia
     ) {
       const valor =
         await obtenerPlanillaLocal(
@@ -1933,8 +1970,7 @@
       );
 
     if (
-      coincidencia &&
-      esIdLocal(coincidencia[1])
+      coincidencia
     ) {
       const valor =
         await obtenerTareaLocal(
@@ -2284,14 +2320,6 @@
               const direccion =
                 crearUrl(fila.id);
 
-              if (
-                await api.leerDato(
-                  `respuesta:${direccion}`,
-                  usuarioId
-                )
-              ) {
-                return;
-              }
 
               try {
                 const respuesta =
@@ -2381,7 +2409,7 @@
         );
 
       if (
-        /^entidad:(planilla|tarea):offline-/i.test(
+        /^entidad:(planilla|tarea):/i.test(
           clave
         )
       ) {

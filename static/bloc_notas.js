@@ -121,6 +121,7 @@ async function obtenerRespuestaAPI(url, opciones = {}) {
   }
 
   if (respuesta.status === 401) {
+    localStorage.removeItem('100t-sesion-dispositivo');
     sessionStorage.clear();
 
     window.location.href = "/app/";

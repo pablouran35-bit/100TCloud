@@ -26,7 +26,7 @@
 
     barra.className = "";
     if (operacionConError) {
-      barra.textContent = `Hay un cambio pendiente que necesita revisión: ${operacionConError.error || "sin detalle"}`;
+      barra.textContent = `Hay un cambio pendiente que necesita revisión: ${typeof operacionConError.error === 'string' ? operacionConError.error : (operacionConError.error?.mensaje || 'Abrí Preparar teléfono / revisar sincronización')}`;
       barra.classList.add("error-sincronizacion");
       barra.hidden = false;
     } else if (!conectado) {
