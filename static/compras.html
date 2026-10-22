@@ -402,6 +402,11 @@
       }
 
     }
+    .fila-seleccion-compra{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:center;gap:4px}
+    .fila-seleccion-compra label{margin:0;display:grid;place-items:center;min-height:48px}
+    .fila-seleccion-compra input[type=checkbox]{width:24px;height:24px;min-height:24px;padding:0;accent-color:#223c61}
+    .fila-seleccion-compra:has(input:checked){background:#eaf1fb;border-radius:10px}
+    .fila-seleccion-compra .item{overflow-wrap:anywhere}
   </style>
 
   <!-- IMPORTANTE:
@@ -410,7 +415,7 @@
        copia vieja guardada en caché. -->
 
   <script
-    src="/app/compras.js?v=20261008"
+    src="/app/compras.js?v=20261021-lote"
     defer
   ></script>
 
@@ -545,6 +550,15 @@
           id="lista-solicitudes-compra"
           class="lista-scroll"
         ></div>
+
+        <form id="formulario-lote">
+          <div class="botones"><button id="seleccionar-todas-compras" type="button" class="secundario">Seleccionar todas</button><button id="quitar-seleccion-compras" type="button" class="secundario">Quitar selección</button></div>
+          <p id="contador-lote" aria-live="polite">0 seleccionadas</p>
+          <label for="estado-lote">Nuevo estado para las seleccionadas</label><select id="estado-lote" required></select>
+          <label for="proveedor-lote">Proveedor para las seleccionadas</label><select id="proveedor-lote" required></select>
+          <p class="ayuda">Se aplican el mismo estado y proveedor a las solicitudes tildadas. Sus observaciones se conservan. El guardado conjunto requiere conexión.</p>
+          <button id="guardar-lote" type="submit" disabled>Guardar selección</button>
+        </form>
 
         <p
           id="mensaje-solicitudes-compra"

@@ -391,3 +391,28 @@ def gestionar_tarea(
             "Tarea actualizada y guardada "
             "en el historial."
     }
+
+class SolicitudLote(BaseModel):
+    id: int = Field(gt=0)
+    estado_anterior: str
+    proveedor_anterior: int | None = None
+
+class GestionLote(BaseModel):
+    estado: str = Field(min_length=1,max_length=100)
+    proveedor_id: int | None = Field(default=None,gt=0)
+    solicitudes: list[SolicitudLote] = Field(min_length=1,max_length=500)
+
+@router.put('/planillas/{planilla_id}/lote')
+def gestionar_lote(planilla_id: int, datos: GestionLote,
+                  identidad=Depends(identidad_tareas),
+                  operacion_id: UUID = Header(alias='Idempotency-Key')):
+    import compras_lote
+    try:
+        return compras_lote.guardar(planilla_id,identidad['usuario_id'],datos.estado,
+             datos.proveedor_id,[s.model_dump() for s in datos.solicitudes],str(operacion_id))
+    except compras_lote.ConflictoLote as error:
+        raise HTTPException(409,str(error))
+    except ValueError as error:
+        raise HTTPException(422,str(error))
+    except Exception:
+        raise HTTPException(500,'No se pudo completar el guardado. Reintentá el mismo cambio para verificar el resultado.')

@@ -562,6 +562,7 @@ async function abrirPlanilla(planillaId) {
 
 
 function mostrarSolicitudes() {
+  prepararLote();
 
   listaSolicitudes.replaceChildren();
 
@@ -627,9 +628,12 @@ function mostrarSolicitudes() {
       );
 
 
-      listaSolicitudes.appendChild(
-        boton
-      );
+      const fila=document.createElement('div');fila.className='fila-seleccion-compra';
+      const etiqueta=document.createElement('label');
+      const casilla=document.createElement('input');casilla.type='checkbox';casilla.value=solicitud.id;
+      casilla.setAttribute('aria-label',`Seleccionar ${solicitud.cantidad} de ${solicitud.producto}`);
+      casilla.addEventListener('change',()=>{if(casilla.checked)seleccionCompras.add(solicitud.id);else seleccionCompras.delete(solicitud.id);actualizarSeleccionCompras();});
+      etiqueta.append(casilla);fila.append(etiqueta,boton);listaSolicitudes.append(fila);
 
     }
   );
@@ -1749,3 +1753,53 @@ document
 
     }
   );
+// Selección por planilla; el detalle individual sigue disponible en cada fila.
+let seleccionCompras=new Set();
+let operacionLote=null;
+function actualizarSeleccionCompras(){
+  document.getElementById('contador-lote').textContent=`${seleccionCompras.size} seleccionadas`;
+  document.getElementById('guardar-lote').disabled=!seleccionCompras.size;
+}
+function prepararLote(){
+  seleccionCompras.clear();operacionLote=null;
+  const estados=document.getElementById('estado-lote'), prov=document.getElementById('proveedor-lote');
+  estados.replaceChildren(new Option('Elegí el nuevo estado',''));
+  estadosSolicitud.forEach(e=>estados.add(new Option(e,e)));
+  prov.replaceChildren(new Option('Elegí el proveedor',''),new Option('Sin proveedor asignado','ninguno'));
+  proveedores.forEach(p=>prov.add(new Option(p.nombre,p.id)));
+  actualizarSeleccionCompras();
+}
+document.getElementById('seleccionar-todas-compras').onclick=()=>{
+  listaSolicitudes.querySelectorAll('input[type=checkbox]').forEach(c=>{c.checked=true;seleccionCompras.add(Number(c.value));});actualizarSeleccionCompras();
+};
+document.getElementById('quitar-seleccion-compras').onclick=()=>{
+  listaSolicitudes.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=false);seleccionCompras.clear();actualizarSeleccionCompras();
+};
+document.getElementById('formulario-lote').onsubmit=async evento=>{
+  evento.preventDefault();
+  if(!planillaActual||!seleccionCompras.size)return;
+  const estado=document.getElementById('estado-lote').value, proveedor=document.getElementById('proveedor-lote').value;
+  if(!estado||!proveedor){mensaje('mensaje-solicitudes-compra','Elegí el estado y el proveedor para las solicitudes tildadas.',true);return;}
+  const idPlanilla=planillaActual.id;
+  const datos={estado,proveedor_id:proveedor==='ninguno'?null:Number(proveedor),solicitudes:planillaActual.solicitudes.filter(s=>seleccionCompras.has(s.id)).map(s=>({id:s.id,estado_anterior:s.estado,proveedor_anterior:s.proveedor_id??null}))};
+  if(!confirm(`¿Aplicar ${estado} y el proveedor elegido a ${datos.solicitudes.length} solicitudes?`))return;
+  const cuerpo=JSON.stringify(datos);
+  if(!operacionLote||operacionLote.cuerpo!==cuerpo)operacionLote={cuerpo,id:crypto.randomUUID()};
+  const bloqueados=[...document.querySelectorAll('main button,main input,main select')].map(el=>[el,el.disabled]);
+  bloqueados.forEach(([el])=>el.disabled=true);
+  mensaje('mensaje-solicitudes-compra','Guardando selección...');
+  let guardado=false;
+  try{
+    const respuesta=await fetch(`/compras/planillas/${idPlanilla}/lote`,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','Idempotency-Key':operacionLote.id},body:cuerpo});
+    const resultado=await respuesta.json();
+    if(!respuesta.ok)throw Error(typeof resultado.detail==='string'?resultado.detail:'No se pudieron guardar los cambios.');
+    guardado=true;seleccionCompras.clear();operacionLote=null;actualizarSeleccionCompras();
+    // Obtener desde la red: evita mostrar el detalle anterior del caché offline.
+    const nueva=await fetch(`/compras/planillas/${idPlanilla}`,{cache:'no-store',headers:{Authorization:'Bearer '+token}});
+    if(!nueva.ok)throw Error('Recargá la planilla para ver su estado actual.');
+    planillaActual=await nueva.json();mostrarSolicitudes();mensaje('mensaje-solicitudes-compra',resultado.mensaje);
+    // La lista de planillas también debe reflejar las solicitudes resueltas.
+    await Promise.all([cargarPlanillas(),cargarDiaCompras()]);
+  }catch(e){mensaje('mensaje-solicitudes-compra',guardado?'Los cambios se guardaron. '+e.message:e.message+' Si se interrumpió la conexión, podés reintentar el mismo guardado.',true);}
+  finally{bloqueados.forEach(([el,antes])=>{if(el.isConnected)el.disabled=antes;});actualizarSeleccionCompras();}
+};
