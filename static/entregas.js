@@ -72,7 +72,6 @@ async function abrirPlanilla(planillaId) {
     document.getElementById("fecha-planilla").textContent =
       `Fecha de compra: ${fechaLegible(planillaActual.fecha_compra)}`;
     mostrarSolicitudes();
-    window.fotosEntrega?.abrir(planillaActual.id);
     vistaPlanillas.hidden = true;
     vistaSolicitudes.hidden = false;
   } catch (error) {
@@ -185,6 +184,7 @@ document.getElementById("boton-registrar-entrega").addEventListener("click", asy
     planillaActual = await llamarApi(`/entregas/${planillaActual.id}`);
     mostrarSolicitudes();
     await cargarPlanillas();
+    window.cargarPlanillasFotosDia?.();
     mostrarMensaje("mensaje-solicitudes", resultado.pendiente
       ? resultado.mensaje : `${resultado.cantidad} solicitud(es) marcada(s) como ENTREGADO.`);
   } catch (error) {
@@ -207,10 +207,4 @@ document.getElementById("volver-planillas").addEventListener("click", async () =
 
 document.querySelectorAll("[data-cerrar]").forEach((boton) => {
   boton.addEventListener("click", () => document.getElementById(boton.dataset.cerrar).close());
-});
-
-document.getElementById('abrir-numero-planilla').addEventListener('click',()=>{
-    const id=Number(document.getElementById('buscar-numero-planilla').value);
-    if(Number.isInteger(id)&&id>0)abrirPlanilla(id);
-    else mostrarMensaje('mensaje-planillas','Ingresá un número de planilla válido.',true);
 });

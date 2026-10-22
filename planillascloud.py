@@ -207,12 +207,13 @@ def obtener_catalogos():
 # PLANILLAS DEL USUARIO
 # ============================================================
 
-def obtener_planillas_pendientes(persona_id, es_contratista):
+def obtener_planillas_pendientes(persona_id, es_contratista, incluir_finalizadas=False):
     conexion_db = conexion.conectar()
 
     try:
         with conexion_db.cursor() as cursor:
 
+            filtro_pendientes = "TRUE" if incluir_finalizadas else "s.id IS NOT NULL AND UPPER(TRIM(COALESCE(s.estado, ''))) NOT IN ('ENTREGADO', 'CANCELADA', 'RECHAZADA')"
             filtro_contratista = ""
             parametros = []
 
@@ -236,7 +237,7 @@ def obtener_planillas_pendientes(persona_id, es_contratista):
                     p.fecha_compra,
                     p.estado,
                     p.observaciones,
-                    COUNT(*) AS pendientes,
+                    COUNT(s.id) FILTER (WHERE UPPER(TRIM(COALESCE(s.estado,''))) NOT IN ('ENTREGADO','CANCELADA','RECHAZADA')) AS pendientes,
                     array_to_string(
                         array_agg(
                             DISTINCT NULLIF(
@@ -252,14 +253,13 @@ def obtener_planillas_pendientes(persona_id, es_contratista):
                 FROM planillas AS p
                 JOIN obras AS o
                     ON o.id = p.obra_id
-                JOIN planilla_solicitudes AS ps
+                LEFT JOIN planilla_solicitudes AS ps
                     ON ps.planilla_id = p.id
-                JOIN solicitudes AS s
+                LEFT JOIN solicitudes AS s
                     ON s.id = ps.solicitud_id
                 LEFT JOIN personas AS per
                     ON per.id = s.persona_id
-                WHERE UPPER(TRIM(COALESCE(s.estado, '')))
-                    NOT IN ('ENTREGADO', 'CANCELADA', 'RECHAZADA')
+                WHERE {filtro_pendientes}
                   {filtro_contratista}
                 GROUP BY
                     p.id,

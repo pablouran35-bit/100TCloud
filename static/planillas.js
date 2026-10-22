@@ -74,6 +74,8 @@ async function cargarDatosIniciales() {
     } else {
       document.getElementById("boton-nueva").disabled = false;
     }
+    const retornar=Number(new URLSearchParams(location.search).get('planilla'));
+    if(Number.isInteger(retornar)&&retornar>0){pantallaAnteriorDetalle='pantalla-existente';await abrirPlanilla(retornar);}
   } catch (error) {
     mostrarError("mensaje-inicial", error.message);
   }
@@ -291,7 +293,7 @@ function mostrarPlanillas() {
 
   const encontradas = planillas.filter((planilla) =>
     normalizar(
-      `${planilla.obra} ${planilla.solicitantes}`
+      `${planilla.id} ${planilla.obra} ${planilla.solicitantes}`
     ).includes(busqueda)
   );
 
@@ -303,7 +305,7 @@ function mostrarPlanillas() {
   if (encontradas.length === 0) {
     lista.textContent = planillas.length
       ? "No hay planillas que coincidan con la búsqueda."
-      : "No hay planillas con solicitudes pendientes.";
+      : "No hay planillas disponibles.";
     return;
   }
 
@@ -352,6 +354,10 @@ async function abrirPlanilla(planillaId) {
 }
 
 function mostrarDetallePlanilla() {
+  const fotos=document.getElementById('fotos-planilla-existente');
+  fotos.hidden=!datosIniciales?.puede_ver_fotos;
+  fotos.href=`/app/fotos_planilla.html?planilla=${planillaActual.id}&volver=planillas`;
+
   document.getElementById("detalle-titulo").textContent =
     `Planilla N.º ${planillaActual.id} · ${planillaActual.obra}`;
 

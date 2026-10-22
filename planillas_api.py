@@ -263,6 +263,7 @@ def datos_iniciales(identidad=Depends(identidad_actual)):
     hoy = planillascloud.fecha_local()
 
     return {
+        "puede_ver_fotos": not contratista,
         "es_contratista": contratista,
         "puede_editar_planillas": "ADMINISTRADOR" in identidad["roles"],
         "obras": [
@@ -421,7 +422,8 @@ def listar_planillas(identidad=Depends(identidad_actual)):
 
     return planillascloud.obtener_planillas_pendientes(
         identidad["persona_id"],
-        contratista
+        contratista,
+        incluir_finalizadas=not contratista
     )
 
 

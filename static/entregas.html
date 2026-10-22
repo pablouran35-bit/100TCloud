@@ -321,7 +321,7 @@
   </style>
 
   <script src="/app/entregas.js?v=fotos1" defer></script>
-  <script src="/app/fotos_entregas.js" defer></script>
+  <script src="/app/entregas_fotos_dia.js" defer></script>
 </head>
 
 <body>
@@ -340,8 +340,14 @@
         Se muestran solicitudes compradas y disponibles para entregar.
       </p>
 
-      <label for="buscar-numero-planilla">Abrir una planilla por número (incluidas entregadas)</label>
-      <input id="buscar-numero-planilla" type="number" min="1"><button id="abrir-numero-planilla" type="button">Abrir planilla / ver fotos</button>
+      <section class="bloque" aria-labelledby="titulo-fotos-dia">
+        <h3 id="titulo-fotos-dia">Fotos de material entregado</h3>
+        <label for="fecha-fotos-entrega">Día de entrega</label><input id="fecha-fotos-entrega" type="date" style="width:100%;padding:10px;font:inherit">
+        <label for="planilla-fotos-dia">Planilla y obra</label><select id="planilla-fotos-dia" style="width:100%;padding:10px;font:inherit" disabled></select>
+        <button id="abrir-fotos-dia" type="button" disabled>Ver / subir fotos</button>
+        <p id="mensaje-fotos-dia" class="mensaje" role="status"></p>
+      </section>
+
       <p id="cantidad-planillas" class="mensaje"></p>
 
       <div id="lista-planillas" class="lista-scroll"></div>
@@ -414,21 +420,11 @@
         </button>
       </div>
 
-      <section id="fotos-planilla">
-        <h3>Fotos de entrega de esta planilla</h3>
-        <p class="ayuda">Podés agregar varias fotos. Se reducen y comprimen antes de subirlas. Las fotos se guardan con conexión, por separado del registro de materiales entregados.</p>
-        <div class="botones"><button id="abrir-camara" type="button">📷 Sacar foto</button><button id="abrir-galeria" type="button" class="secundario">Elegir de galería</button></div>
-        <input id="camara-foto" type="file" accept="image/*" capture="environment" hidden>
-        <input id="galeria-foto" type="file" accept="image/*" multiple hidden>
-        <div id="fotos-pendientes" class="fotos-grilla"></div>
-        <button id="subir-fotos" type="button" disabled>Subir fotos (0)</button>
-        <p id="mensaje-fotos" class="mensaje" role="status"></p>
-        <div id="fotos-guardadas" class="fotos-grilla"></div>
-      </section>
+
     </section>
 
   </main>
-  <dialog id="dialogo-foto" class="dialogo"><button id="cerrar-foto" type="button">Cerrar foto</button><p id="foto-datos"></p><img id="foto-ampliada" alt="Foto de la entrega ampliada"></dialog>
+
 
 
   <dialog

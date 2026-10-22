@@ -80,7 +80,7 @@
       <button class="secundario volver-pantalla" data-volver="pantalla-opciones" type="button">← Volver a Planillas</button>
       <div class="bloque">
         <h2>Planillas existentes</h2>
-        <p class="aviso">Se muestran las planillas que tienen solicitudes pendientes. Las anteriores se pueden consultar; solo se agregan solicitudes durante la semana habilitada para tu rol.</p>
+        <p class="aviso">Podés consultar las planillas anteriores. Empleados y administradores también pueden abrir las finalizadas y cargar sus fotos de entrega. Solo se agregan solicitudes durante la semana habilitada para tu rol.</p>
         <label for="buscar-planilla">Buscar por obra o solicitante</label>
         <input id="buscar-planilla" type="search" placeholder="Escribí para buscar" autocomplete="off">
         <p id="cantidad-planillas" class="mensaje"></p>
@@ -94,6 +94,7 @@
       <div class="bloque">
         <h2 id="detalle-titulo"></h2>
         <p id="detalle-fecha" class="mensaje"></p>
+        <p><a id="fotos-planilla-existente" class="volver" hidden>Ver / cargar fotos de entrega</a></p>
         <p id="aviso-solo-consulta" class="aviso" hidden>Esta planilla es de una semana anterior: podés consultarla, pero no agregar solicitudes.</p>
         <h3>Solicitudes</h3>
         <div id="lista-solicitudes" class="lista-scroll"></div>

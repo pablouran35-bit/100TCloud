@@ -88,9 +88,11 @@
     }catch(e){aviso(`${cantidad} foto(s) confirmada(s). ${e.message} Las pendientes quedan disponibles para reintentar sin duplicarlas.`);}
     finally{subiendo=false;controles.forEach(([e,valor])=>e.disabled=valor);pintarPendientes();}
   };
-  $('volver-planillas').addEventListener('click',e=>{
-    if(subiendo||(pendientes.length&&!confirm('Hay fotos sin subir. ¿Descartarlas y volver?'))){e.stopImmediatePropagation();return;}
+  function alSalir(e){
+    if(subiendo||(pendientes.length&&!confirm('Hay fotos sin subir. ¿Descartarlas y volver?'))){e.preventDefault();e.stopImmediatePropagation();return;}
     generacion++;pendientes.forEach(f=>URL.revokeObjectURL(f.url));pendientes=[];liberar();
-  },true);
+  }
+  $('volver-planillas')?.addEventListener('click',alSalir,true);
+  $('volver-fotos')?.addEventListener('click',alSalir,true);
   window.addEventListener('beforeunload',e=>{if(pendientes.length){e.preventDefault();e.returnValue='';}});
 })();

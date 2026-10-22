@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v8-fotos-entrega";
+const CACHE_NAME = "100tcompras-shell-v9-selector-fotos";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
@@ -18,6 +18,9 @@ const APP_FILES = [
   "/app/entregas.html",
   "/app/entregas.js",
   "/app/fotos_entregas.js",
+  "/app/fotos_planilla.html",
+  "/app/fotos_planilla_pagina.js",
+  "/app/entregas_fotos_dia.js",
   "/app/cambiar_contrasena.html",
   "/app/cambiar_contrasena.js",
 ];

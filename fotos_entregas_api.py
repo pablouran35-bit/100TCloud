@@ -1,4 +1,5 @@
 from uuid import UUID
+from datetime import date,datetime,timedelta,timezone
 from fastapi import APIRouter,Depends,HTTPException,Request,Response,Query
 from entregas_api import identidad_entregas
 import conexion
@@ -12,6 +13,12 @@ def traducir(error):
     if isinstance(error,FileNotFoundError):raise HTTPException(404,str(error))
     if isinstance(error,ValueError):raise HTTPException(422,str(error))
     raise HTTPException(500,'No se pudo acceder a las fotos. Si estabas subiendo una, reintentá para verificar si quedó guardada.')
+
+@router.get('/fotos/planillas-entregadas')
+def entregadas_del_dia(fecha:date|None=None,identidad=Depends(identidad_entregas)):
+    dia=fecha or datetime.now(timezone(timedelta(hours=-3))).date()
+    try:return {'fecha':dia,'planillas':servicio.entregadas_dia(dia,identidad['usuario_id'])}
+    except Exception as e:traducir(e)
 
 @router.get('/{planilla_id}/fotos')
 def listar(planilla_id:int,identidad=Depends(identidad_entregas)):

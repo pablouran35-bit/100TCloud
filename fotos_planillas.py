@@ -85,3 +85,18 @@ class FotosPlanillas:
             if not fila:raise FileNotFoundError('No se encontró esa foto en esta planilla.')
             return bytes(fila[0])
         finally:c.close()
+
+    def entregadas_dia(self,dia,uid):
+        from datetime import date
+        dia=date.fromisoformat(str(dia))
+        c=self.conectar()
+        try:
+            q=c.cursor();self.autorizar(q,uid)
+            self.ejecutar(q,"""SELECT p.id,o.nombre FROM planillas p JOIN obras o ON o.id=p.obra_id
+                WHERE EXISTS (SELECT 1 FROM planilla_solicitudes ps
+                JOIN historial_solicitudes h ON h.solicitud_id=ps.solicitud_id
+                WHERE ps.planilla_id=p.id AND UPPER(TRIM(h.estado))='ENTREGADO'
+                AND (h.fecha_hora AT TIME ZONE 'America/Argentina/Buenos_Aires')::date=%s)
+                ORDER BY p.id DESC""",(dia,))
+            return [dict(id=f[0],obra=f[1]) for f in q.fetchall()]
+        finally:c.close()
