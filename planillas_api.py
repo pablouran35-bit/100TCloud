@@ -214,6 +214,42 @@ class ResolverAprobacion(BaseModel):
 # DATOS INICIALES
 # ============================================================
 
+
+# Edición completa: siempre conectada y autorizada en el servidor.
+class EdicionAdministrativa(BaseModel):
+    anterior: dict
+    cambios: dict
+
+@router.get("/administracion/edicion")
+def listar_edicion(identidad=Depends(identidad_actual)):
+    exigir_administrador(identidad)
+    import edicion_planillas_cloud as editor
+    return editor.listar(identidad['usuario_id'])
+
+@router.get("/administracion/edicion/{planilla_id}")
+def cargar_edicion(planilla_id: int, identidad=Depends(identidad_actual)):
+    exigir_administrador(identidad)
+    import edicion_planillas_cloud as editor
+    try:
+        documento, opciones=editor.cargar(planilla_id,identidad['usuario_id'])
+        return {'documento':documento,'opciones':opciones}
+    except ValueError as error:
+        raise HTTPException(404,str(error))
+
+@router.put("/administracion/edicion/{planilla_id}")
+def guardar_edicion(planilla_id: int, datos: EdicionAdministrativa, identidad=Depends(identidad_actual)):
+    exigir_administrador(identidad)
+    import edicion_planillas_cloud as editor
+    try:
+        return editor.guardar(planilla_id,identidad['usuario_id'],datos.anterior,datos.cambios)
+    except PermissionError as error:
+        raise HTTPException(403,str(error))
+    except (ValueError,KeyError,TypeError) as error:
+        raise HTTPException(422,str(error) if isinstance(error,ValueError) else 'Revisá los datos de la planilla.')
+    except Exception:
+        raise HTTPException(500,'No se pudo guardar la planilla. Volvé a abrirla para verificar su estado.')
+
+
 @router.get("/inicial")
 def datos_iniciales(identidad=Depends(identidad_actual)):
     contratista = es_contratista(identidad)
@@ -227,6 +263,8 @@ def datos_iniciales(identidad=Depends(identidad_actual)):
     hoy = planillascloud.fecha_local()
 
     return {
+        "es_contratista": contratista,
+        "puede_editar_planillas": "ADMINISTRADOR" in identidad["roles"],
         "obras": [
             {
                 "id": obra[0],

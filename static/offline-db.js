@@ -1077,6 +1077,21 @@
         );
       }
 
+      // Calcular con el día real del cambio, no con la fecha del catálogo
+      // que pudo guardarse días atrás. La API vuelve a validar al sincronizar.
+      if (typeof inicial.es_contratista !== "boolean") {
+        throw new Error("Abrí Planillas con conexión una vez para actualizar las reglas de fechas.");
+      }
+      const partes = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(new Date(operacion.creado_en));
+      const parte = tipo => partes.find(p => p.type === tipo).value;
+      const fecha = new Date(`${parte('year')}-${parte('month')}-${parte('day')}T12:00:00Z`);
+      const dia = (fecha.getUTCDay() + 6) % 7;
+      const salto = inicial.es_contratista && dia <= 1 ? (dia === 0 ? 8 : 7) : (1 - dia + 7) % 7;
+      fecha.setUTCDate(fecha.getUTCDate() + salto);
+      const fechaObjetivo = fecha.toISOString().slice(0,10);
+
       const id =
         `offline-${operacion.id}`;
 
@@ -1084,7 +1099,7 @@
         JSON.stringify({
           ...cuerpo,
           fecha_compra:
-            inicial.fecha_compra_nueva
+            fechaObjetivo
         });
 
       const entidad = {
@@ -1092,7 +1107,7 @@
         obra_id: obra.id,
         obra: obra.nombre,
         fecha_compra:
-          inicial.fecha_compra_nueva,
+          fechaObjetivo,
         puede_modificar: true,
         solicitudes: [],
         offline: true,

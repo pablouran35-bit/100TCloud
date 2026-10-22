@@ -59,12 +59,12 @@ def fecha_compra_objetivo(es_contratista, hoy=None):
             days=8 if hoy.weekday() == 0 else 7
         )
 
+    # Empleados y administradores: lunes -> martes de mañana;
+    # martes -> hoy. De miércoles a domingo -> martes siguiente.
+    # El salto adicional de una semana es exclusivo de contratistas.
     dias = (1 - hoy.weekday()) % 7
-
-    if dias == 0:
-        dias = 7
-
     return hoy + timedelta(days=dias)
+
 
 
 def puede_modificar_fecha(fecha_planilla, es_contratista, hoy=None):

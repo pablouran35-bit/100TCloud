@@ -53,6 +53,7 @@ function fechaLegible(valor) {
 async function cargarDatosIniciales() {
   try {
     datosIniciales = await llamarApi("/planillas/inicial");
+    document.getElementById("acceso-edicion-admin").hidden = !datosIniciales.puede_editar_planillas;
 
     document.getElementById("fecha-compra-nueva").textContent =
       fechaLegible(datosIniciales.fecha_compra_nueva);

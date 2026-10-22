@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editar planillas · 100TCompras</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#e4e8ed;color:#223c61;font-family:Arial,sans-serif}main{max-width:650px;margin:auto;padding:22px;background:#f8f9fb;min-height:100vh}label{display:block;margin:15px 0 5px;font-weight:bold}input,select,textarea,button{font:inherit;padding:12px;max-width:100%;border:1px solid #cbd2dc;border-radius:8px}input,select,textarea{width:100%;background:white;color:#223c61}button{background:#223c61;color:white;margin:8px 5px 8px 0;cursor:pointer}button:disabled{opacity:.5}fieldset{margin:18px 0;border:1px solid #cbd2dc;border-radius:10px;min-width:0}#mensaje{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#223c61}[hidden]{display:none!important}</style>
+<main><a href="/app/planillas.html">← Volver a Planillas</a><h1>Edición administrativa</h1>
+<p>Podés corregir planillas de cualquier fecha, incluso con material entregado. Las compras y entregas se conservan y los cambios quedan registrados. Necesitás conexión para guardar.</p>
+<label for="buscar">Buscar por número u obra</label><input id="buscar" type="search">
+<label for="planillas">Planillas (hasta 1000 recientes)</label><select id="planillas"></select><button id="abrir" type="button">Abrir planilla</button>
+<p>También podés abrir una planilla anterior por su número.</p><label for="numero">Número de planilla</label><input id="numero" type="number" min="1"><button id="abrir-numero" type="button">Abrir por número</button>
+<p id="mensaje" role="status"></p><form id="editor" hidden><h2 id="titulo"></h2><div id="cabecera"></div><div id="solicitudes"></div><button id="guardar" type="submit">Guardar todos los cambios</button><button id="cancelar" type="button">Cancelar</button></form>
+</main><script src="/app/editar_planillas.js" defer></script></html>
