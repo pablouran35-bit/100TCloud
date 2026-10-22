@@ -6,3 +6,4 @@ python-dotenv==1.2.3
 pydantic==2.13.5
 pwdlib
 argon2-cffi
+Pillow==12.0.0

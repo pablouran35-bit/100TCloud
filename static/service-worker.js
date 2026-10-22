@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v7-compras-lote";
+const CACHE_NAME = "100tcompras-shell-v8-fotos-entrega";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
@@ -17,6 +17,7 @@ const APP_FILES = [
   "/app/compras.js",
   "/app/entregas.html",
   "/app/entregas.js",
+  "/app/fotos_entregas.js",
   "/app/cambiar_contrasena.html",
   "/app/cambiar_contrasena.js",
 ];
