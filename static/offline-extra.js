@@ -101,6 +101,23 @@
     return d;
   };
 
+  // Una cola pendiente conserva los cambios locales, pero no debe ocultar
+  // planillas que ya existen en el servidor (incluidas sincronizaciones previas).
+  api.refrescarPlanillas = async (token, conBloqueo=false) => {
+    if(!conBloqueo && navigator.locks)return navigator.locks.request('100t-operaciones',()=>api.refrescarPlanillas(token,true));
+    if(!navigator.onLine)throw Error('Sin conexión: se muestra la última copia guardada.');
+    const uid=usuario().id;
+    const r=await fetch('/planillas',{cache:'no-store',signal:AbortSignal.timeout(20000),headers:{Authorization:'Bearer '+token}});
+    const filas=await r.json();
+    if(!r.ok)throw Object.assign(Error(typeof filas.detail==='string'?filas.detail:'No se pudo actualizar la lista.'),{status:r.status});
+    if(!Array.isArray(filas))throw Error('El servidor no devolvió una lista válida de planillas.');
+    if(uid!==usuario().id || token!==sessionStorage.getItem('token'))throw Error('La sesión cambió. Volvé a abrir Planillas.');
+    // Solo se renueva el listado. No se borran entidades, fotos ni operaciones
+    // pendientes; la lectura local agrega las creaciones y aplica sus cambios.
+    await api.guardarDato('respuesta:/planillas',filas,uid);
+    return (await api.leerColeccionLocal('/planillas',uid)).valor;
+  };
+
   // Reintentos mientras la aplicación está abierta; también tras volver del bloqueo.
   const sincronizar=()=>{if(navigator.onLine && !document.hidden)api.sincronizarPendientes(sessionStorage.getItem('token')).catch(()=>{});};
   setInterval(sincronizar,30000);

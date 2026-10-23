@@ -2003,11 +2003,7 @@
         structuredClone(guardado);
 
       for (const planilla of valor) {
-        const detalle =
-          await api.leerDato(
-            `respuesta:/planillas/${planilla.id}`,
-            usuarioId
-          );
+        const detalle = await obtenerPlanillaLocal(planilla.id, usuarioId);
 
         if (detalle) {
           planilla.pendientes =
@@ -2438,6 +2434,7 @@
   }
 
 
+  api.leerColeccionLocal = (ruta, usuarioId) => leerRespuestaLocal(ruta, usuarioId);
   window.offline100t = api;
 
 

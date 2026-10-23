@@ -275,7 +275,14 @@ async function cargarPlanillas() {
   limpiarMensaje("mensaje-existente");
 
   try {
-    planillas = await llamarApi("/planillas");
+    if(navigator.onLine) {
+      try { planillas=await window.offline100t.refrescarPlanillas(token); }
+      catch(error) {
+        if(error.status===401 || error.status===403)throw error;
+        planillas=await llamarApi('/planillas');
+        mostrarError('mensaje-existente','No se pudo actualizar desde el servidor. Se muestra la copia del teléfono. '+error.message);
+      }
+    } else planillas=await llamarApi('/planillas');
     mostrarPlanillas();
   } catch (error) {
     lista.replaceChildren();
@@ -728,4 +735,9 @@ window.addEventListener('100t:identificador-sincronizado', evento => {
   for(const solicitud of planillaActual?.solicitudes || [])if(String(solicitud.id)===localId)solicitud.id=realId;
   for(const fila of planillas)if(String(fila.id)===localId)fila.id=realId;
   if(solicitudSeleccionada && String(solicitudSeleccionada.id)===localId)solicitudSeleccionada.id=realId;
+});
+
+document.getElementById('actualizar-lista-planillas').addEventListener('click', async evento=>{
+  evento.target.disabled=true;
+  try { await cargarPlanillas(); } finally { evento.target.disabled=false; }
 });
