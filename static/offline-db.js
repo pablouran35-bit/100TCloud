@@ -2362,6 +2362,7 @@
     // Convertir también claves, solicitudes anidadas y filas de los listados.
     // La cola no se modifica: resolverUrl usa el mapa al enviar cada operación.
     const filas = await api.listarDatos('', usuarioId);
+    const porClave = new Map(filas.map(f=>[f.clave,f.valor]));
     const db = await abrir();
     function convertir(valor) {
       if (Array.isArray(valor)) {
@@ -2383,7 +2384,11 @@
       for (const fila of filas) {
         if (fila.clave.startsWith(`${usuarioId}:mapa:`)) continue;
         const clave = fila.clave.replaceAll(localId,String(realId));
-        const valor=convertir(fila.valor);
+        let valor=convertir(fila.valor);
+        const anterior=porClave.get(clave);
+        if(clave!==fila.clave && clave.startsWith(`${usuarioId}:entidad:planilla:`) && anterior?.solicitudes) {
+          valor={...anterior,...valor,solicitudes:[...new Map([...anterior.solicitudes,...valor.solicitudes].map(f=>[String(f.id),f])).values()]};
+        }
         if(clave!==fila.clave || valor!==fila.valor)almacen.put({...fila,clave,valor});
         if (clave !== fila.clave) almacen.delete(fila.clave);
       }
@@ -2403,7 +2408,11 @@
     for (const fila of filas) {
       const clave=fila.clave.slice(`${usuarioId}:`.length),m=clave.match(/^entidad:(planilla|tarea):(.+)$/);
       if(!m)continue;
-      const entidad=fila.valor;
+      let entidad=fila.valor;
+      if(m[1]==='planilla') {
+        const anterior=await api.leerDato(`respuesta:/planillas/${entidad.id}`,usuarioId);
+        if(anterior?.solicitudes)entidad={...anterior,...entidad,solicitudes:[...new Map([...anterior.solicitudes,...entidad.solicitudes].map(f=>[String(f.id),f])).values()]};
+      }
       // Nunca retirar una creación sin número confirmado por el servidor.
       if(esIdLocal(String(entidad.id)))continue;
       const ruta=m[1]==='planilla'?'/planillas':'/tareas';

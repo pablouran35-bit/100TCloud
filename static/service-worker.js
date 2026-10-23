@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v11-planillas-sincronizadas";
+const CACHE_NAME = "100tcompras-shell-v11-planillas-sincronizadas-r2";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
