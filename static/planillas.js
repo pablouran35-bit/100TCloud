@@ -720,3 +720,12 @@ window.addEventListener("100t:recargar-datos", async () => {
     await cargarPlanillas();
   }
 });
+
+// Mantener la pantalla abierta apuntando al número confirmado por Cloud.
+window.addEventListener('100t:identificador-sincronizado', evento => {
+  const {localId,realId}=evento.detail;
+  if(planillaActual && String(planillaActual.id)===localId)planillaActual.id=realId;
+  for(const solicitud of planillaActual?.solicitudes || [])if(String(solicitud.id)===localId)solicitud.id=realId;
+  for(const fila of planillas)if(String(fila.id)===localId)fila.id=realId;
+  if(solicitudSeleccionada && String(solicitudSeleccionada.id)===localId)solicitudSeleccionada.id=realId;
+});

@@ -348,7 +348,7 @@
         ) {
           const local =
             await leerRespuestaLocal(
-              url,
+              direccion,
               usuario.id
             );
 
@@ -358,7 +358,7 @@
 
           const guardado =
             await this.leerDato(
-              `respuesta:${url}`,
+              `respuesta:${direccion}`,
               usuario.id
             );
 
@@ -534,7 +534,7 @@
         if (metodo === "GET") {
           const local =
             await leerRespuestaLocal(
-              url,
+              direccion,
               usuario.id
             );
 
@@ -544,7 +544,7 @@
 
           const guardado =
             await this.leerDato(
-              `respuesta:${url}`,
+              `respuesta:${direccion}`,
               usuario.id
             );
 
@@ -602,7 +602,7 @@
           window.dispatchEvent(new CustomEvent('100t:cambios-pendientes'));
           return local.respuesta;
         }
-        const copia = usuario.id ? await this.leerDato(`respuesta:${url}`,usuario.id) : null;
+        const copia = usuario.id ? await this.leerDato(`respuesta:${direccion}`,usuario.id) : null;
         if (copia !== null) return copia;
         throw Error('La conexión se interrumpió al recibir los datos. Reintentá con conexión.');
       }
@@ -631,7 +631,7 @@
         usuario.id
       ) {
         await this.guardarDato(
-          `respuesta:${url}`,
+          `respuesta:${direccion}`,
           datos,
           usuario.id
         ).catch(() => {});
@@ -2027,7 +2027,7 @@
 
       const locales =
         await api.listarDatos(
-          "entidad:planilla:offline-",
+          "entidad:planilla:",
           usuarioId
         );
 
@@ -2039,8 +2039,7 @@
             (r) =>
               String(r.id) ===
               String(p.id)
-          ) &&
-          p.solicitudes.length
+          )
         ) {
           valor.unshift({
             id: p.id,
@@ -2104,7 +2103,7 @@
 
       const locales =
         await api.listarDatos(
-          "entidad:tarea:offline-",
+          "entidad:tarea:",
           usuarioId
         );
 
@@ -2359,66 +2358,74 @@
   }
 
 
-  async function actualizarIdLocal(
-    localId,
-    realId,
-    usuarioId
-  ) {
-    const prefijos = [
-      "entidad:planilla:",
-      "entidad:tarea:"
-    ];
-
-    for (const prefijo of prefijos) {
-      const fila =
-        await api.leerDato(
-          `${prefijo}${localId}`,
-          usuarioId
-        );
-
-      if (!fila) {
-        continue;
+  async function actualizarIdLocal(localId, realId, usuarioId) {
+    // Convertir también claves, solicitudes anidadas y filas de los listados.
+    // La cola no se modifica: resolverUrl usa el mapa al enviar cada operación.
+    const filas = await api.listarDatos('', usuarioId);
+    const db = await abrir();
+    function convertir(valor) {
+      if (Array.isArray(valor)) {
+        const salida=valor.map(convertir);
+        return salida.some((v,i)=>v!==valor[i])?salida:valor;
       }
-
-      fila.id = realId;
-
-      await api.guardarDato(
-        `${prefijo}${realId}`,
-        fila,
-        usuarioId
-      );
-
-      break;
+      if (!valor || typeof valor !== 'object' || valor instanceof Blob) return valor;
+      const salida = {};
+      for (const [campo,dato] of Object.entries(valor)) {
+        salida[campo] = ['id','planilla_id','solicitud_id','tarea_id'].includes(campo) && String(dato) === localId
+          ? realId : convertir(dato);
+      }
+      if (String(valor.id) === localId) salida.offline = false;
+      return Object.keys(salida).some(campo=>salida[campo]!==valor[campo])?salida:valor;
     }
+    await new Promise((ok,no) => {
+      const tx = db.transaction('datos_locales','readwrite');
+      const almacen = tx.objectStore('datos_locales');
+      for (const fila of filas) {
+        if (fila.clave.startsWith(`${usuarioId}:mapa:`)) continue;
+        const clave = fila.clave.replaceAll(localId,String(realId));
+        const valor=convertir(fila.valor);
+        if(clave!==fila.clave || valor!==fila.valor)almacen.put({...fila,clave,valor});
+        if (clave !== fila.clave) almacen.delete(fila.clave);
+      }
+      tx.oncomplete=()=>{db.close();ok();};
+      tx.onerror=tx.onabort=()=>{db.close();no(tx.error || Error('No se pudo actualizar el número local de la planilla.'));};
+    });
+    window.dispatchEvent(new CustomEvent('100t:identificador-sincronizado',{detail:{localId,realId}}));
   }
 
-
-  async function limpiarEntidadesLocales(
-    usuarioId
-  ) {
-    const filas =
-      await api.listarDatos(
-        "entidad:",
-        usuarioId
-      );
-
+  async function limpiarEntidadesLocales(usuarioId) {
+    // Confirmar no equivale a borrar: promover el detalle y su fila a la copia
+    // permanente antes de retirar la entidad provisional, en una transacción.
+    const filas = await api.listarDatos('entidad:', usuarioId);
+    const colecciones = new Map();
+    for (const ruta of ['/planillas','/tareas']) colecciones.set(ruta,await api.leerDato(`respuesta:${ruta}`,usuarioId) || []);
+    const escrituras=[];
     for (const fila of filas) {
-      const clave =
-        fila.clave.slice(
-          `${usuarioId}:`.length
-        );
-
-      if (
-        /^entidad:(planilla|tarea):/i.test(
-          clave
-        )
-      ) {
-        await api.quitarDato(
-          clave,
-          usuarioId
-        );
-      }
+      const clave=fila.clave.slice(`${usuarioId}:`.length),m=clave.match(/^entidad:(planilla|tarea):(.+)$/);
+      if(!m)continue;
+      const entidad=fila.valor;
+      // Nunca retirar una creación sin número confirmado por el servidor.
+      if(esIdLocal(String(entidad.id)))continue;
+      const ruta=m[1]==='planilla'?'/planillas':'/tareas';
+      const lista=colecciones.get(ruta),indice=lista.findIndex(p=>String(p.id)===String(entidad.id));
+      const resumen=m[1]==='planilla'?{
+        id:entidad.id,obra_id:entidad.obra_id,obra:entidad.obra,fecha_compra:entidad.fecha_compra,
+        pendientes:(entidad.solicitudes || []).filter(s=>!['ENTREGADO','CANCELADA','RECHAZADA'].includes((s.estado || '').toUpperCase())).length,
+        solicitantes:indice>=0?lista[indice].solicitantes:etiquetaPersona(objetoJson(sessionStorage.getItem('usuario'))),
+        puede_modificar:entidad.puede_modificar,offline:false
+      }:{...entidad,offline:false};
+      if(indice>=0)lista[indice]={...lista[indice],...resumen};else lista.unshift(resumen);
+      escrituras.push({clave:`${usuarioId}:respuesta:${ruta}/${entidad.id}`,usuario_id:usuarioId,actualizado_en:new Date().toISOString(),valor:{...entidad,offline:false}});
     }
+    const db=await abrir();
+    await new Promise((ok,no)=>{
+      const tx=db.transaction('datos_locales','readwrite'),almacen=tx.objectStore('datos_locales');
+      for(const fila of escrituras)almacen.put(fila);
+      for(const [ruta,valor] of colecciones)almacen.put({clave:`${usuarioId}:respuesta:${ruta}`,usuario_id:usuarioId,actualizado_en:new Date().toISOString(),valor});
+      for(const fila of filas)if(!esIdLocal(String(fila.valor.id)))almacen.delete(fila.clave);
+      tx.oncomplete=()=>{db.close();ok();};
+      tx.onerror=tx.onabort=()=>{db.close();no(tx.error || Error('No se pudo conservar la copia sincronizada.'));};
+    });
   }
 
 
