@@ -71,6 +71,61 @@
     }
   };
 
+  api.guardarFotoSolicitud = async (planilla,id,blob,conBloqueo=false) => {
+    if(!conBloqueo && navigator.locks)return navigator.locks.request('100t-operaciones',()=>api.guardarFotoSolicitud(planilla,id,blob,true));
+    const u=usuario();if(!u.id || !(blob instanceof Blob))throw Error('Iniciá sesión antes de guardar fotos.');
+    const url=`/solicitudes/${planilla}/fotos/${id}`, ahora=new Date().toISOString();
+    const anteriores=await api.listarPendientes(u.id);
+    const op={id,operacion_id:id,usuario_id:u.id,url,method:'PUT',body:blob,content_type:'image/jpeg',estado:'PENDIENTE',orden:Math.max(Date.now(),...anteriores.map(p=>(p.orden || 0)+1)),intentos:0,creado_en:ahora};
+    const foto={id,creada_en:ahora,usuario:`${u.nombre || ''} ${u.apellido || ''}`.trim(),pendiente:true};
+    await transaccion((pendientes,datos)=>{
+      pendientes.put(op);
+      const clave=`${u.id}:foto-solicitud-local:${planilla}:${id}`;
+      datos.put({clave,usuario_id:u.id,actualizado_en:ahora,valor:{...foto,blob}});
+      datos.delete(`${u.id}:borrador-foto-solicitud:${planilla}:${id}`);
+    });
+    if(navigator.onLine)window.dispatchEvent(new CustomEvent('100t:sincronizar-pendientes'));
+    return {pendiente:true};
+  };
+
+  api.fotosSolicitudApi = async (ruta,op={}) => {
+    const u=usuario(), token=sessionStorage.getItem('token');
+    ruta=await api.resolverRuta(ruta,u.id);
+    if(op.method==='PUT') {
+      const m=ruta.match(/^\/solicitudes\/((?:\d+|offline-[0-9a-f-]+))\/fotos\/([\da-f-]+)$/i);
+      if(!m)throw Error('Planilla de fotos inválida.');
+      return Response.json(await api.guardarFotoSolicitud(m[1],m[2],op.body));
+    }
+    const lista=ruta.match(/^\/solicitudes\/((?:\d+|offline-[0-9a-f-]+))\/fotos$/);
+    if(lista) {
+      let filas=[];
+      try { if(!lista[1].startsWith('offline-'))filas=await api.solicitarApi(ruta,{},token); }
+      catch(e) { if(e.status)throw e; }
+      const locales=await api.listarDatos(`foto-solicitud-local:${lista[1]}:`,u.id);
+      const pendientes=await api.listarPendientes(u.id), ids=new Set(pendientes.map(p=>p.id));
+      const salida=[...filas];
+      for(const f of locales) if(!salida.some(r=>r.id===f.valor.id)) {
+        const {blob,...meta}=f.valor;salida.push({...meta,pendiente:ids.has(meta.id)});
+      }
+      return Response.json(salida);
+    }
+    const img=ruta.match(/^\/solicitudes\/((?:\d+|offline-[0-9a-f-]+))\/fotos\/([\da-f-]+)(?:\?miniatura=true)?$/i);
+    if(!img)throw Error('Ruta de foto inválida.');
+    const local=await api.leerDato(`foto-solicitud-local:${img[1]}:${img[2]}`,u.id);
+    if(local?.blob)return new Response(local.blob);
+    const clave=`imagen-solicitud:${ruta}`;
+    try {
+      if(!navigator.onLine)throw Error('Sin conexión');
+      const r=await fetch(ruta,{cache:'no-store',headers:{Authorization:'Bearer '+token}});
+      if(!r.ok)throw Object.assign(Error('No se pudo consultar la foto.'),{status:r.status});
+      const blob=await r.blob();await api.guardarDato(clave,blob,u.id);return new Response(blob);
+    }catch(e){
+      if(e.status)throw e;
+      const blob=await api.leerDato(clave,u.id);if(blob)return new Response(blob);
+      throw Error('Esta foto todavía no está descargada en el teléfono. Abrila con conexión para conservar una copia.');
+    }
+  };
+
   // Las entregas registradas localmente también deben permitir adjuntar fotos.
   const solicitar=api.solicitarApi.bind(api);
   api.solicitarApi=async (ruta,op={},token='') => {

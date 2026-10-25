@@ -112,7 +112,7 @@
           <select id="area-solicitud" required></select>
           <label for="observaciones-solicitud">Observaciones</label>
           <textarea id="observaciones-solicitud" maxlength="1000" placeholder="Detalles del pedido"></textarea>
-          <div class="botones"><button id="boton-agregar-solicitud" type="submit">Agregar solicitud</button></div>
+          <div class="botones"><button id="boton-agregar-solicitud" type="submit">Agregar solicitud</button><button type="submit" name="con-fotos" value="si">Agregar solicitud y fotos</button></div>
         </form>
         <p id="mensaje-solicitud" class="mensaje" role="status"></p>
       </section>
@@ -125,7 +125,7 @@
         <p id="detalle-solicitud-area"></p>
         <p id="detalle-solicitud-solicitante"></p>
         <p id="detalle-solicitud-estado"></p>
-        <p id="detalle-solicitud-observaciones"></p>
+        <p id="detalle-solicitud-observaciones"></p><p><a id="fotos-solicitud-existente" href="#">Ver / agregar fotos de esta solicitud</a></p>
         <p id="mensaje-accion-solicitud" class="mensaje" role="status"></p>
         <div id="acciones-solicitud" class="botones">
           <button id="boton-modificar-solicitud" class="secundario" type="button">Modificar</button>

@@ -1091,6 +1091,9 @@ function abrirSolicitud(solicitud) {
   );
 
 
+  let fotos=document.getElementById('fotos-referencia-compra');
+  if(!fotos){fotos=document.createElement('a');fotos.id='fotos-referencia-compra';fotos.textContent='Ver fotos de referencia del pedido';dialogoSolicitud.append(fotos);}
+  fotos.href='/app/fotos_solicitud.html?solicitud='+encodeURIComponent(solicitud.id)+'&volver=compras';
   dialogoSolicitud.showModal();
 
 }

@@ -2435,6 +2435,7 @@
 
 
   api.leerColeccionLocal = (ruta, usuarioId) => leerRespuestaLocal(ruta, usuarioId);
+  api.resolverRuta = resolverUrl;
   window.offline100t = api;
 
 

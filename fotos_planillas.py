@@ -36,8 +36,12 @@ def comprimir(datos):
 
 class FotosPlanillas:
     def __init__(self,conectar,escritorio=False):self.conectar=conectar;self.escritorio=escritorio
-    def ejecutar(self,q,sql,args=()):q.execute(sql.replace('%s','?') if self.escritorio else sql,args)
-    def autorizar(self,q,usuario_id):
+    tabla_fotos='fotos_entrega_planillas'
+    campo_recurso='planilla_id'
+    def ejecutar(self,q,sql,args=()):
+        sql=sql.replace('fotos_entrega_planillas',self.tabla_fotos).replace('planilla_id',self.campo_recurso)
+        q.execute(sql.replace('%s','?') if self.escritorio else sql,args)
+    def autorizar(self,q,usuario_id,recurso_id=None):
         self.ejecutar(q,"""SELECT COALESCE(NULLIF(TRIM(COALESCE(p.nombre,'') || ' ' || COALESCE(p.apellido,'')),''),u.usuario)
             FROM usuarios u JOIN personas p ON p.id=u.persona_id
             WHERE u.id=%s AND p.activo=TRUE AND EXISTS
@@ -52,7 +56,7 @@ class FotosPlanillas:
     def listar(self,pid,uid):
         c=self.conectar()
         try:
-            q=c.cursor();self.autorizar(q,uid);self.planilla(q,pid)
+            q=c.cursor();self.autorizar(q,uid,pid);self.planilla(q,pid)
             self.ejecutar(q,'''SELECT id,creada_en,usuario_nombre,ancho,alto,octet_length(imagen)
                 FROM fotos_entrega_planillas WHERE planilla_id=%s ORDER BY creada_en,id''',(pid,))
             return [dict(id=str(f[0]),creada_en=str(f[1]),usuario=f[2],ancho=f[3],alto=f[4],bytes=f[5]) for f in q.fetchall()]
@@ -63,7 +67,7 @@ class FotosPlanillas:
         huella=sha256(datos).hexdigest()
         c=self.conectar()
         try:
-            q=c.cursor();nombre=self.autorizar(q,uid);self.planilla(q,pid)
+            q=c.cursor();nombre=self.autorizar(q,uid,pid);self.planilla(q,pid)
             self.ejecutar(q,'''INSERT INTO fotos_entrega_planillas
                 (id,planilla_id,usuario_id,usuario_nombre,imagen,miniatura,ancho,alto,huella)
                 VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING''',
@@ -78,7 +82,7 @@ class FotosPlanillas:
     def leer(self,pid,uid,foto_id,miniatura=False):
         foto_id=str(UUID(str(foto_id)));c=self.conectar()
         try:
-            q=c.cursor();self.autorizar(q,uid)
+            q=c.cursor();self.autorizar(q,uid,pid)
             campo='miniatura' if miniatura else 'imagen'
             self.ejecutar(q,'SELECT '+campo+' FROM fotos_entrega_planillas WHERE id=%s AND planilla_id=%s',(foto_id,pid))
             fila=q.fetchone()

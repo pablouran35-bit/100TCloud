@@ -1,13 +1,16 @@
 (() => {
   const $=id=>document.getElementById(id);
+  const esSolicitud=document.body.dataset.fotosTipo==='solicitud';
+  const rutaFotos=id=>`/${esSolicitud?'solicitudes':'entregas'}/${id}/fotos`;
+  const prefijoBorrador=esSolicitud?'borrador-foto-solicitud':'borrador-foto';
   let pid=null,generacion=0,pendientes=[],urls=[],subiendo=false;
   const sesion=sessionStorage.getItem('token');
   function aviso(texto){$('mensaje-fotos').textContent=texto;}
   async function api(ruta,op={}){
-    return window.offline100t.fotosApi(ruta,op);
+    return window.offline100t[esSolicitud?'fotosSolicitudApi':'fotosApi'](ruta,op);
   }
   const usuarioId=()=>JSON.parse(sessionStorage.getItem('usuario') || '{}').id;
-  const claveBorrador=id=>`borrador-foto:${pid}:${id}`;
+  const claveBorrador=id=>`${prefijoBorrador}:${pid}:${id}`;
 
   function liberar(){urls.forEach(URL.revokeObjectURL);urls=[];}
   function pintarPendientes(){
@@ -50,9 +53,9 @@
   }
   async function cargar(){
     const actual=generacion,planilla=pid;liberar();$('fotos-guardadas').replaceChildren();
-    const listado=await (await api(`/entregas/${planilla}/fotos`)).json();
+    const listado=await (await api(rutaFotos(planilla))).json();
     if(actual!==generacion)return;
-    if(!listado.length){$('fotos-guardadas').textContent='Todavía no hay fotos de esta planilla.';return;}
+    if(!listado.length){$('fotos-guardadas').textContent=(esSolicitud?'Todavía no hay fotos de esta solicitud.':'Todavía no hay fotos de esta planilla.');return;}
     for(const f of listado){
       if(actual!==generacion)return;
       const caja=document.createElement('figure'),boton=document.createElement('button'),img=document.createElement('img'),pie=document.createElement('figcaption');
@@ -60,10 +63,10 @@
       img.alt='Foto de entrega';
       const fecha=new Date(f.creada_en.replace(' ','T'));pie.textContent=`${f.pendiente?'Pendiente de sincronizar · ':''}${f.usuario} · ${Number.isNaN(fecha.getTime())?f.creada_en:fecha.toLocaleString('es-AR')}`;
       boton.append(img);caja.append(boton,pie);$('fotos-guardadas').append(caja);
-      try{const blob=await (await api(`/entregas/${planilla}/fotos/${f.id}?miniatura=true`)).blob();if(actual!==generacion)return;const u=URL.createObjectURL(blob);urls.push(u);img.src=u;}
+      try{const blob=await (await api(`${rutaFotos(planilla)}/${f.id}?miniatura=true`)).blob();if(actual!==generacion)return;const u=URL.createObjectURL(blob);urls.push(u);img.src=u;}
       catch{img.alt='No se pudo cargar la vista previa';}
       boton.onclick=async()=>{
-        try{const blob=await (await api(`/entregas/${planilla}/fotos/${f.id}`)).blob();const u=URL.createObjectURL(blob);$('foto-ampliada').src=u;$('foto-datos').textContent=pie.textContent;$('dialogo-foto').showModal();$('dialogo-foto').addEventListener('close',()=>{URL.revokeObjectURL(u);$('foto-ampliada').removeAttribute('src');},{once:true});}
+        try{const blob=await (await api(`${rutaFotos(planilla)}/${f.id}`)).blob();const u=URL.createObjectURL(blob);$('foto-ampliada').src=u;$('foto-datos').textContent=pie.textContent;$('dialogo-foto').showModal();$('dialogo-foto').addEventListener('close',()=>{URL.revokeObjectURL(u);$('foto-ampliada').removeAttribute('src');},{once:true});}
         catch(e){aviso(e.message);}
       };
     }
@@ -74,7 +77,7 @@
       generacion++;pid=id;const actual=generacion;
       pendientes.forEach(f=>URL.revokeObjectURL(f.url));pendientes=[];
       try{
-        const guardadas=await window.offline100t.listarDatos(`borrador-foto:${pid}:`,usuarioId());
+        const guardadas=await window.offline100t.listarDatos(`${prefijoBorrador}:${pid}:`,usuarioId());
         if(actual!==generacion)return;
         pendientes=guardadas.map(f=>({...f.valor,url:URL.createObjectURL(f.valor.blob)}));pintarPendientes();
         aviso('Cargando fotos...');await cargar();aviso(pendientes.length?'Tenés fotos guardadas en el teléfono. Tocá Guardar fotos para enviarlas.':'');
@@ -92,13 +95,14 @@
     try{
       for(const f of [...pendientes]){
         aviso(`Subiendo foto ${cantidad+1}...`);
-        await api(`/entregas/${pid}/fotos/${f.id}`,{method:'PUT',headers:{'Content-Type':'image/jpeg'},body:f.blob});
+        await api(`${rutaFotos(pid)}/${f.id}`,{method:'PUT',headers:{'Content-Type':'image/jpeg'},body:f.blob});
         pendientes=pendientes.filter(x=>x!==f);URL.revokeObjectURL(f.url);cantidad++;
       }
       await cargar();aviso(`${cantidad} foto(s) guardada(s) en este teléfono. Se sincronizan al tener conexión.`);
     }catch(e){aviso(`${cantidad} foto(s) confirmada(s). ${e.message} Las pendientes quedan disponibles para reintentar sin duplicarlas.`);}
     finally{subiendo=false;controles.forEach(([e,valor])=>e.disabled=valor);pintarPendientes();}
   };
+  window.addEventListener('100t:identificador-sincronizado',e=>{if(String(pid)===e.detail.localId)pid=e.detail.realId;});
   window.addEventListener('100t:sincronizado',()=>{if(pid&&!subiendo)cargar().catch(e=>aviso(e.message));});
   function alSalir(e){
     if(subiendo){e.preventDefault();e.stopImmediatePropagation();return;}

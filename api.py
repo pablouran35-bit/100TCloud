@@ -59,6 +59,8 @@ app.include_router(router_compras)
 app.include_router(router_entregas)
 from fotos_entregas_api import router as router_fotos_entregas
 app.include_router(router_fotos_entregas)
+from fotos_solicitudes_api import router as router_fotos_solicitudes
+app.include_router(router_fotos_solicitudes)
 app.include_router(router_reportes)
 app.include_router(router_bloc_notas)
 

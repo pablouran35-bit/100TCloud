@@ -74,8 +74,12 @@ async function cargarDatosIniciales() {
     } else {
       document.getElementById("boton-nueva").disabled = false;
     }
-    const retornar=Number(new URLSearchParams(location.search).get('planilla'));
-    if(Number.isInteger(retornar)&&retornar>0){pantallaAnteriorDetalle='pantalla-existente';await abrirPlanilla(retornar);}
+    const original=new URLSearchParams(location.search).get('planilla') || '';
+    if(/^([1-9]\d*|offline-[0-9a-f-]+)$/.test(original)){
+      const uid=JSON.parse(sessionStorage.getItem('usuario') || '{}').id;
+      const retornar=(await window.offline100t.resolverRuta('/planillas/'+original,uid)).split('/').pop();
+      pantallaAnteriorDetalle='pantalla-existente';await abrirPlanilla(retornar);
+    }
   } catch (error) {
     mostrarError("mensaje-inicial", error.message);
   }
@@ -410,6 +414,7 @@ const formularioEditarSolicitud =
 
 function abrirDetalleSolicitud(solicitud) {
   solicitudSeleccionada = solicitud;
+  document.getElementById('fotos-solicitud-existente').href='/app/fotos_solicitud.html?solicitud='+encodeURIComponent(solicitud.id)+'&planilla='+encodeURIComponent(planillaActual.id);
 
   document.getElementById("mensaje-accion-solicitud").textContent = "";
   document.getElementById("formulario-cancelar-solicitud").hidden = true;
@@ -673,6 +678,8 @@ document.getElementById("formulario-solicitud").addEventListener(
     }
 
     const boton = document.getElementById("boton-agregar-solicitud");
+    const botonesGuardar=[...evento.target.querySelectorAll('button[type="submit"]')];
+    botonesGuardar.forEach(b=>b.disabled=true);
     boton.disabled = true;
     boton.textContent = "Guardando...";
 
@@ -691,6 +698,10 @@ document.getElementById("formulario-solicitud").addEventListener(
         }
       );
 
+      if(evento.submitter?.name==='con-fotos'){
+        location.href='/app/fotos_solicitud.html?solicitud='+encodeURIComponent(resultado.id)+'&planilla='+encodeURIComponent(planillaActual.id);
+        return;
+      }
       evento.target.reset();
 
       document.getElementById("buscar-articulo").value = "";
@@ -714,6 +725,7 @@ document.getElementById("formulario-solicitud").addEventListener(
     } finally {
       boton.disabled = false;
       boton.textContent = "Agregar solicitud";
+      botonesGuardar.forEach(b=>b.disabled=false);
     }
   }
 );

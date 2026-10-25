@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v12-refresco-planillas";
+const CACHE_NAME = "100tcompras-shell-v13-fotos-solicitudes";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
@@ -23,6 +23,8 @@ const APP_FILES = [
   "/app/entregas.js",
   "/app/fotos_entregas.js",
   "/app/fotos_planilla.html",
+  "/app/fotos_solicitud.html",
+  "/app/fotos_solicitud_pagina.js",
   "/app/fotos_planilla_pagina.js",
   "/app/entregas_fotos_dia.js",
   "/app/cambiar_contrasena.html",
