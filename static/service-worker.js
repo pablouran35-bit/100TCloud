@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v15-excel-reportes";
+const CACHE_NAME = "100tcompras-shell-v16-importar-excel";
 const APP_FILES = [
   "/app/",
   "/app/index.html",

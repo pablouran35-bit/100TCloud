@@ -185,3 +185,6 @@ def iniciar_sesion(datos: DatosInicioSesion):
 
 from recorrido_api import router as router_recorridos
 app.include_router(router_recorridos)
+
+from importar_excel_api import router as router_importar_excel
+app.include_router(router_importar_excel)
