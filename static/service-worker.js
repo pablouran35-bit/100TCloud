@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v13-fotos-solicitudes";
+const CACHE_NAME = "100tcompras-shell-v14-recorrido";
 const APP_FILES = [
   "/app/",
   "/app/index.html",
@@ -18,6 +18,8 @@ const APP_FILES = [
   "/app/tareas.html",
   "/app/tareas.js",
   "/app/compras.html",
+  "/app/recorrido.html",
+  "/app/recorrido.js",
   "/app/compras.js",
   "/app/entregas.html",
   "/app/entregas.js",

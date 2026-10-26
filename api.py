@@ -182,3 +182,6 @@ def iniciar_sesion(datos: DatosInicioSesion):
             "roles": roles
         }
     }
+
+from recorrido_api import router as router_recorridos
+app.include_router(router_recorridos)

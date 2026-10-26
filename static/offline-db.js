@@ -891,6 +891,11 @@
           await this.quitarPendiente(
             operacion.id
           );
+          if(operacion.url.startsWith('/recorridos/') && !(await this.listarPendientes(usuario.id)).some(p=>p.url===operacion.url)) {
+            const clave=`respuesta:${operacion.url}`,copia=await this.leerDato(clave,usuario.id);
+            if(copia){copia.pendiente=false;await this.guardarDato(clave,copia,usuario.id);}
+          }
+
         }
 
 
@@ -1046,6 +1051,21 @@
       etiquetaPersona(usuario);
 
     let localOutputId = null;
+    if (operacion.method==='PUT' && /^\/recorridos\/\d{4}-\d{2}-\d{2}$/.test(operacion.url)) {
+      const clave=`respuesta:${operacion.url}`,previo=await api.leerDato(clave,usuario.id);
+      if(!previo)throw Error('Abrí el recorrido de ese día con conexión antes de modificarlo sin internet.');
+      if(previo.revision!==cuerpo.revision)throw Error('El recorrido local cambió. Volvé a abrirlo antes de continuar.');
+      const catalogo=new Map([...(previo.proveedores || []).map(p=>[p.id,p.nombre]),...previo.paradas.map(p=>[p.proveedor_id,p.nombre])]);
+      const ids=new Set();
+      const paradas=cuerpo.paradas.map(p=>{
+        if(ids.has(p.proveedor_id)||!catalogo.has(p.proveedor_id))throw Error('Proveedor inválido en el recorrido.');
+        ids.add(p.proveedor_id);return {...p,nombre:catalogo.get(p.proveedor_id)};
+      });
+      const resultado={...previo,revision:previo.revision+1,paradas,pendiente:true,mensaje:'Recorrido guardado en este teléfono.'};
+      await api.guardarDato(clave,resultado,usuario.id);
+      return {respuesta:resultado};
+    }
+
 
 
     /*

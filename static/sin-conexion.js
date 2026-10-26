@@ -34,7 +34,7 @@
       if((await api.listarPendientes(u.id)).length){await api.sincronizarPendientes(token);if((await api.listarPendientes(u.id)).length)throw Error('Hay cambios pendientes. Sincronizalos o revisá el conflicto antes de descargar otra copia.');}
       const roles=(u.roles || [u.rol]).map(r=>String(r).toUpperCase()),operador=roles.some(r=>['ADMINISTRADOR','EMPLEADO'].includes(r));
       const rutas=['/planillas/inicial','/planillas','/tareas/inicial','/tareas'];
-      if(operador)rutas.push('/compras/inicial','/compras/planillas','/compras/tareas','/compras/dia-compras','/entregas','/entregas/fotos/planillas-entregadas');
+      if(operador)rutas.push('/compras/inicial','/compras/planillas','/compras/tareas','/compras/dia-compras','/entregas','/entregas/fotos/planillas-entregadas','/recorridos/'+new Date(Date.now()-3*3600000).toISOString().slice(0,10));
       const errores=[];
       async function descargar(ruta){
         const r=await fetch(ruta,{cache:'no-store',headers:{Authorization:'Bearer '+token}});
