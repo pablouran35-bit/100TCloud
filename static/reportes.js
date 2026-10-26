@@ -14,6 +14,9 @@ const etiquetas = {
   estado: "Estado", desde: "Fecha desde", hasta: "Fecha hasta",
 };
 let catalogos = {};
+let ultimoReporte=null,revisionConsulta=0;
+const botonExcel=document.getElementById("exportar-excel");
+botonExcel.addEventListener("click",exportarExcel);
 
 if (!token) window.location.replace("/app/");
 else iniciar();
@@ -88,14 +91,20 @@ function parametrosActuales() {
 }
 
 async function cargarReporte() {
+  const revision=++revisionConsulta;
+  ultimoReporte=null;botonExcel.disabled=true;
+  const filtros=[...contenedorFiltros.querySelectorAll('[data-filtro]')].filter(c=>c.value).map(c=>({campo:etiquetas[c.dataset.filtro],valor:c.tagName==='SELECT'?c.selectedOptions[0].textContent:c.value}));
+
   contenedorResultados.textContent = "Cargando reporte…";
   mensaje("");
   try {
     const tipo = selector.value;
     const sufijo = parametrosActuales();
     const filas = await llamarApi(`/reportes/${tipo}${sufijo ? `?${sufijo}` : ""}`);
+    if(revision!==revisionConsulta)return;
     mostrarResultados(tipo, filas);
-  } catch (error) { contenedorResultados.replaceChildren(); mensaje(error.message, true); }
+    ultimoReporte={tipo,filas:structuredClone(filas),filtros};botonExcel.disabled=!filas.length;
+  } catch (error) { if(revision!==revisionConsulta)return;contenedorResultados.replaceChildren(); mensaje(error.message, true); }
 }
 
 function formatoFecha(valor) {
@@ -151,4 +160,17 @@ function mensaje(texto, error = false) {
   const elemento = document.getElementById("mensaje");
   elemento.textContent = texto;
   elemento.style.color = error ? "#b42318" : "";
+}
+
+async function exportarExcel(){
+  if(!ultimoReporte)return;
+  const consulta=structuredClone(ultimoReporte);botonExcel.disabled=true;
+  try{
+    const r=await fetch('/reportes/exportar-excel',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(consulta)});
+    if(!r.ok){const d=await r.json().catch(()=>({}));throw Error(typeof d.detail==='string'?d.detail:'No se pudo generar el Excel.');}
+    const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
+    const nombre=(r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/);
+    a.href=url;a.download=nombre?nombre[1]:'100T_reporte.xlsx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){mensaje(e.message,true);}
+  finally{botonExcel.disabled=!ultimoReporte?.filas.length;}
 }
