@@ -561,13 +561,17 @@ async function abrirPlanilla(planillaId) {
 }
 
 
+function solicitudPendienteDeDecision(s) {
+  return ['', 'PENDIENTE DE COMPRA', 'SOLICITADO', 'PENDIENTE'].includes(String(s.estado || '').trim().toUpperCase());
+}
 function mostrarSolicitudes() {
+  const pendientes = planillaActual.solicitudes.filter(solicitudPendienteDeDecision);
   prepararLote();
 
   listaSolicitudes.replaceChildren();
 
 
-  if (!planillaActual.solicitudes.length) {
+  if (!pendientes.length) {
 
     listaSolicitudes.textContent =
       "Esta planilla ya no tiene solicitudes por resolver.";
@@ -577,7 +581,7 @@ function mostrarSolicitudes() {
   }
 
 
-  planillaActual.solicitudes.forEach(
+  pendientes.forEach(
     (solicitud) => {
 
       const boton =

@@ -327,13 +327,10 @@ def listar_planillas_compra():
                         ))
                     ) = 'APROBADA'
 
-                    AND UPPER(
-                        TRIM(COALESCE(s.estado, ''))
-                    ) NOT IN (
-                        'COMPRADO Y RETIRADO',
-                        'ENTREGADO',
-                        'CANCELADA',
-                        'RECHAZADA'
+                    AND UPPER(COALESCE(NULLIF(TRIM(s.estado), ''), 'PENDIENTE DE COMPRA')) IN (
+                        'PENDIENTE DE COMPRA',
+                        'SOLICITADO',
+                        'PENDIENTE'
                     )
 
                 GROUP BY

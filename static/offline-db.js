@@ -1002,7 +1002,29 @@
   }
 
 
+  async function reflejarEnDiaCompras(api, usuarioId, planilla, solicitudes) {
+    const clave = 'respuesta:/compras/dia-compras';
+    const dia = await api.leerDato(clave, usuarioId);
+    if (!dia || !Array.isArray(dia.solicitudes)) return;
+    for (const solicitud of solicitudes) {
+      const existente = dia.solicitudes.find(s => String(s.id) === String(solicitud.id));
+      const estado = String(solicitud.estado || '').trim().toUpperCase();
+      if (['CANCELADA','RECHAZADA'].includes(estado)) {
+        dia.solicitudes = dia.solicitudes.filter(s => String(s.id) !== String(solicitud.id));
+      } else if (existente) {
+        existente.estado = solicitud.estado;
+        existente.ultima_modificacion = new Date().toISOString();
+      } else {
+        dia.solicitudes.push({id:solicitud.id, planilla_id:planilla.id, cantidad:solicitud.cantidad,
+          producto:solicitud.producto, obra:planilla.obra, estado:solicitud.estado,
+          fecha_planilla:planilla.fecha_compra, ultima_modificacion:new Date().toISOString()});
+      }
+    }
+    await api.guardarDato(clave, dia, usuarioId);
+  }
+
   async function reflejarEnEntregas(api, usuarioId, planilla, solicitudes) {
+    await reflejarEnDiaCompras(api, usuarioId, planilla, solicitudes);
     const clave = `respuesta:/entregas/${planilla.id}`;
     let entrega = await api.leerDato(clave, usuarioId) || {...planilla,solicitudes:[]};
     for (const solicitud of solicitudes) {
@@ -2224,13 +2246,7 @@
                       ].includes(
                         estado
                       )
-                    : ![
-                        "COMPRADO Y RETIRADO",
-                        "ENTREGADO",
-                        "CANCELADA"
-                      ].includes(
-                        estado
-                      )
+                    : ['', 'PENDIENTE DE COMPRA', 'SOLICITADO', 'PENDIENTE'].includes(estado.trim())
                 );
               }
             );
