@@ -60,7 +60,15 @@ function mostrarPlanillas() {
     datos.textContent = `${fechaLegible(planilla.fecha_compra)} · ${planilla.disponibles} solicitudes para entregar`;
     boton.append(titulo, datos);
     boton.addEventListener("click", () => abrirPlanilla(planilla.id));
-    listaPlanillas.appendChild(boton);
+    const fotos = document.createElement("button");
+    fotos.type = "button";
+    fotos.className = "secundario";
+    fotos.textContent = "Sacar / agregar fotos";
+    fotos.addEventListener("click", () => abrirFotosPlanilla(planilla.id));
+    const grupo = document.createElement("div");
+    grupo.className = "bloque";
+    grupo.append(boton, fotos);
+    listaPlanillas.appendChild(grupo);
   });
 }
 
@@ -207,4 +215,12 @@ document.getElementById("volver-planillas").addEventListener("click", async () =
 
 document.querySelectorAll("[data-cerrar]").forEach((boton) => {
   boton.addEventListener("click", () => document.getElementById(boton.dataset.cerrar).close());
+});
+
+function abrirFotosPlanilla(id) {
+  if (!Number.isInteger(Number(id)) || Number(id) < 1) return;
+  window.location.href = `/app/fotos_planilla.html?planilla=${encodeURIComponent(id)}&volver=entregas`;
+}
+document.getElementById("fotos-planilla-abierta").addEventListener("click", () => {
+  if (planillaActual) abrirFotosPlanilla(planillaActual.id);
 });
