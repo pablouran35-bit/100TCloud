@@ -416,7 +416,7 @@
        copia vieja guardada en caché. -->
 
   <script
-    src="/app/compras.js?v=20261021-lote"
+    src="/app/compras.js?v=mercaderia1"
     defer
   ></script>
 
@@ -492,7 +492,7 @@
         </h2>
 
         <p class="ayuda">
-          Se muestran solo solicitudes pendientes de decidir. Las ya compradas, encargadas, señadas o marcadas como no disponibles se consultan en Día de compras.
+          Se muestran solo solicitudes pendientes de decidir. Los artículos con saldo por retirar también aparecen acá. Las ya compradas, encargadas, señadas o marcadas como no disponibles se consultan en Día de compras.
         </p>
 
         <label for="buscar-planilla-compra">
@@ -714,6 +714,10 @@
       ></select>
 
 
+      <label hidden>
+        Cantidad que retiraste en esta visita
+        <input id="cantidad-retiro" type="text" inputmode="decimal" autocomplete="off">
+      </label>
       <label for="proveedor-solicitud-compra">
         Proveedor
       </label>

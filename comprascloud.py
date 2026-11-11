@@ -318,7 +318,7 @@ def listar_planillas_compra():
 
                 JOIN solicitudes AS s
                     ON s.id = ps.solicitud_id
-
+                JOIN saldos_mercaderia AS sm ON sm.solicitud_id = s.id
                 WHERE
                     UPPER(
                         TRIM(COALESCE(
@@ -327,10 +327,11 @@ def listar_planillas_compra():
                         ))
                     ) = 'APROBADA'
 
-                    AND UPPER(COALESCE(NULLIF(TRIM(s.estado), ''), 'PENDIENTE DE COMPRA')) IN (
-                        'PENDIENTE DE COMPRA',
-                        'SOLICITADO',
-                        'PENDIENTE'
+                    AND (
+                        UPPER(COALESCE(NULLIF(TRIM(s.estado), ''), 'PENDIENTE DE COMPRA')) IN (
+                            'PENDIENTE DE COMPRA', 'SOLICITADO', 'PENDIENTE', 'COMPRADO A RETIRAR'
+                        )
+                        OR (sm.seguimiento AND sm.retirada < s.cantidad)
                     )
 
                 GROUP BY
@@ -394,7 +395,8 @@ def obtener_planilla_compra(planilla_id):
                     s.estado,
                     s.proveedor_id,
                     pv.nombre,
-                    s.observaciones
+                    s.observaciones,
+                    sm.retirada, sm.entregada, sm.seguimiento
 
                 FROM planilla_solicitudes AS ps
 
@@ -404,6 +406,7 @@ def obtener_planilla_compra(planilla_id):
                 JOIN productos AS pr
                     ON pr.id = s.producto_id
 
+                JOIN saldos_mercaderia AS sm ON sm.solicitud_id = s.id
                 LEFT JOIN proveedores AS pv
                     ON pv.id = s.proveedor_id
 
@@ -418,6 +421,7 @@ def obtener_planilla_compra(planilla_id):
                       'RECHAZADA'
                   )
 
+                  AND (NOT sm.seguimiento OR sm.retirada < s.cantidad)
                 ORDER BY s.id;
             """, (planilla_id,))
 
@@ -489,6 +493,9 @@ def obtener_planilla_compra(planilla_id):
                         "proveedor_id": fila[4],
                         "proveedor": fila[5] or "",
                         "observaciones": fila[6] or "",
+                        "retirada": str(fila[7]),
+                        "entregada": str(fila[8]),
+                        "seguimiento": fila[9],
                         "historial": historiales[fila[0]],
                     }
                     for fila in solicitudes

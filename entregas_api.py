@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Header
 from pydantic import BaseModel, Field
@@ -20,6 +22,33 @@ def identidad_entregas(identidad=Depends(identidad_actual)):
 
 class SolicitudesEntrega(BaseModel):
     solicitud_ids: list[int] = Field(min_length=1)
+
+
+class CantidadEntrega(BaseModel):
+    solicitud_id: int = Field(gt=0)
+    cantidad: Decimal = Field(gt=0)
+    entregada_anterior: Decimal = Field(ge=0)
+
+
+class EntregasConCantidad(BaseModel):
+    entregas: list[CantidadEntrega] = Field(min_length=1)
+
+
+@router.post("/{planilla_id}/movimientos")
+def registrar_entregas_con_cantidad(planilla_id: int, datos: EntregasConCantidad,
+                                   identidad=Depends(identidad_entregas),
+                                   operacion_id: UUID = Header(alias="Idempotency-Key")):
+    cantidades = {e.solicitud_id: (e.cantidad, e.entregada_anterior) for e in datos.entregas}
+    if len(cantidades) != len(datos.entregas):
+        raise HTTPException(422, "No repitas una solicitud en la entrega.")
+    try:
+        cantidad = entregascloud.registrar_entrega(
+            planilla_id, cantidades, identidad["usuario_id"], str(operacion_id),
+            cantidades=cantidades,
+        )
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return {"mensaje": "Entrega registrada correctamente.", "cantidad": cantidad}
 
 
 @router.get("")

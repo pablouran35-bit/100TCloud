@@ -1,4 +1,4 @@
-const CACHE_NAME = "100tcompras-shell-v18-pendientes-decision-compra";
+const CACHE_NAME = "100tcompras-shell-v19-mercaderia";
 const APP_FILES = [
   "/app/",
   "/app/index.html",

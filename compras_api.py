@@ -1,5 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
+from decimal import Decimal
 from uuid import UUID
+
+import psycopg2
+import conexion
+import offlinecloud
 from fastapi import Header
 from pydantic import BaseModel, Field
 
@@ -18,6 +23,41 @@ class GestionSolicitud(BaseModel):
         default=None,
         max_length=4000
     )
+
+
+class RetiroMercaderia(BaseModel):
+    cantidad: Decimal = Field(gt=0)
+    retirada_anterior: Decimal = Field(ge=0)
+    estado_anterior: str
+    proveedor_id: int = Field(gt=0)
+    observaciones: str | None = Field(default=None, max_length=4000)
+
+
+@router.post("/planillas/{planilla_id}/solicitudes/{solicitud_id}/retiros")
+def registrar_retiro(planilla_id: int, solicitud_id: int, datos: RetiroMercaderia,
+                      identidad=Depends(identidad_tareas),
+                      operacion_id: UUID = Header(alias="Idempotency-Key")):
+    db = conexion.conectar()
+    try:
+        with db, db.cursor() as cursor:
+            clave = str(operacion_id)
+            usuario = identidad["usuario_id"]
+            recurso = f"compras:retiro:{planilla_id}:{solicitud_id}"
+            repetida = offlinecloud.iniciar_operacion(cursor, clave, usuario, recurso)
+            if repetida is not None:
+                return repetida
+            cursor.execute("""
+                SELECT registrar_retiro_mercaderia(%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (planilla_id, solicitud_id, datos.cantidad, datos.retirada_anterior,
+                  datos.estado_anterior, datos.proveedor_id, usuario,
+                  limpiar_observaciones(datos.observaciones)))
+            resultado = {"estado": cursor.fetchone()[0], "mensaje": "Retiro registrado."}
+            offlinecloud.finalizar_operacion(cursor, clave, resultado)
+            return resultado
+    except psycopg2.errors.InvalidParameterValue as error:
+        raise HTTPException(422, error.diag.message_primary) from error
+    finally:
+        db.close()
 
 
 class CambioEstadoSolicitud(BaseModel):

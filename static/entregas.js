@@ -57,7 +57,7 @@ function mostrarPlanillas() {
     const titulo = document.createElement("strong");
     titulo.textContent = `Planilla N.º ${planilla.id} · ${planilla.obra}`;
     const datos = document.createElement("small");
-    datos.textContent = `${fechaLegible(planilla.fecha_compra)} · ${planilla.disponibles} solicitudes para entregar`;
+    datos.textContent = `${fechaLegible(planilla.fecha_compra)} · ${planilla.disponibles} solicitudes pendientes de entrega`;
     boton.append(titulo, datos);
     boton.addEventListener("click", () => abrirPlanilla(planilla.id));
     const fotos = document.createElement("button");
@@ -115,22 +115,35 @@ function mostrarSolicitudes() {
     const casilla = document.createElement("input");
     casilla.type = "checkbox";
     casilla.value = solicitud.id;
+    casilla.disabled = Number(solicitud.disponible ?? solicitud.cantidad) <= 0;
     casilla.addEventListener("change", actualizarSeleccion);
     const contenido = document.createElement("span");
     const nombre = document.createElement("strong");
     nombre.textContent = `${solicitud.cantidad} — ${solicitud.producto}`;
+    const cantidadEntrega = document.createElement("input");
+    cantidadEntrega.type = "text";
+    cantidadEntrega.inputMode = "decimal";
+    cantidadEntrega.className = "cantidad-entrega";
+    cantidadEntrega.dataset.solicitud = solicitud.id;
+    cantidadEntrega.value = solicitud.disponible ?? solicitud.cantidad;
+    cantidadEntrega.disabled = casilla.disabled;
+    cantidadEntrega.setAttribute("aria-label", `Cantidad a entregar de ${solicitud.producto}`);
     const estado = document.createElement("small");
     estado.textContent = `${solicitud.estado}${solicitud.area ? ` · Área ${solicitud.area_id}: ${solicitud.area}` : ""}`;
     const observaciones = document.createElement("small");
     observaciones.textContent = solicitud.observaciones ? `Observaciones: ${solicitud.observaciones}` : "Sin observaciones";
-    contenido.append(nombre, estado, observaciones);
+    const saldo = document.createElement("small");
+    saldo.textContent = `Disponible: ${solicitud.disponible ?? solicitud.cantidad} · Entregado: ${solicitud.entregada ?? 0} · Pendiente en obra: ${solicitud.pendiente_obra ?? solicitud.cantidad}`;
+    contenido.append(nombre, estado, saldo, observaciones);
     etiqueta.append(casilla, contenido);
     const verHistorial = document.createElement("button");
     verHistorial.type = "button";
     verHistorial.className = "secundario";
     verHistorial.textContent = "Historial";
     verHistorial.addEventListener("click", () => abrirHistorial(solicitud));
-    fila.append(etiqueta, verHistorial);
+    const etiquetaCantidad = document.createElement("label");
+    etiquetaCantidad.append("Cantidad a entregar ", cantidadEntrega);
+    fila.append(etiqueta, etiquetaCantidad, verHistorial);
     listaSolicitudes.appendChild(fila);
   });
   actualizarSeleccion();
@@ -165,7 +178,7 @@ function abrirHistorial(solicitud) {
 
 document.getElementById("boton-seleccionar-todas").addEventListener("click", () => {
   document.querySelectorAll("#lista-solicitudes input[type=checkbox]").forEach((casilla) => {
-    casilla.checked = true;
+    casilla.checked = !casilla.disabled;
   });
   actualizarSeleccion();
 });
@@ -181,20 +194,31 @@ document.getElementById("boton-registrar-entrega").addEventListener("click", asy
   if (!planillaActual) return;
   const ids = solicitudesSeleccionadas();
   if (!ids.length) return;
-  if (!window.confirm(`¿Marcar ${ids.length} solicitud(es) como ENTREGADO? Se guardarán en el historial la fecha y tu usuario.`)) return;
+  if (!window.confirm(`¿Registrar las cantidades indicadas para ${ids.length} solicitud(es)?`)) return;
   const boton = evento.currentTarget;
   boton.disabled = true;
   try {
-    const resultado = await llamarApi(`/entregas/${planillaActual.id}/solicitudes`, {
-      method: "PATCH",
-      body: JSON.stringify({ solicitud_ids: ids }),
+    let necesitaCantidades = false;
+    const entregas = ids.map(id => {
+      const solicitud = planillaActual.solicitudes.find(s => Number(s.id) === id);
+      const disponible = solicitud.disponible ?? solicitud.cantidad;
+      const cantidad = listaSolicitudes.querySelector(`[data-solicitud="${id}"]`).value.trim().replace(",", ".");
+      if (!/^\d+(?:\.\d+)?$/.test(cantidad) || Number(cantidad) <= 0 || Number(cantidad) > Number(disponible)) {
+        throw new Error(`Ingresá una cantidad entre 0 y ${disponible} para ${solicitud.producto}.`);
+      }
+      necesitaCantidades ||= solicitud.seguimiento || Number(cantidad) !== Number(disponible);
+      return { solicitud_id: id, cantidad, entregada_anterior: solicitud.entregada ?? 0 };
     });
+    const base = `/entregas/${planillaActual.id}`;
+    const resultado = necesitaCantidades
+      ? await llamarApi(`${base}/movimientos`, { method: "POST", body: JSON.stringify({ entregas }) })
+      : await llamarApi(`${base}/solicitudes`, { method: "PATCH", body: JSON.stringify({ solicitud_ids: ids }) });
     planillaActual = await llamarApi(`/entregas/${planillaActual.id}`);
     mostrarSolicitudes();
     await cargarPlanillas();
     window.cargarPlanillasFotosDia?.();
     mostrarMensaje("mensaje-solicitudes", resultado.pendiente
-      ? resultado.mensaje : `${resultado.cantidad} solicitud(es) marcada(s) como ENTREGADO.`);
+      ? resultado.mensaje : `${resultado.cantidad} solicitud(es) con entrega registrada.`);
   } catch (error) {
     mostrarMensaje("mensaje-solicitudes", error.message, true);
   } finally {

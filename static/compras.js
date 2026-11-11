@@ -42,6 +42,16 @@ let diaCompras = null;
 
 let planillaActual = null;
 let solicitudActual = null;
+const opcionRetiro = "REGISTRAR RETIRO PARCIAL";
+const selectorGestion = document.getElementById("estado-solicitud-compra");
+const campoRetiro = document.getElementById("cantidad-retiro");
+const etiquetaRetiro = campoRetiro.closest("label");
+
+selectorGestion.addEventListener("change", () => {
+  const esRetiro = selectorGestion.value === opcionRetiro;
+  etiquetaRetiro.hidden = !esRetiro;
+  campoRetiro.required = esRetiro;
+});
 let tareaActual = null;
 
 
@@ -565,7 +575,7 @@ function solicitudPendienteDeDecision(s) {
   return ['', 'PENDIENTE DE COMPRA', 'SOLICITADO', 'PENDIENTE'].includes(String(s.estado || '').trim().toUpperCase());
 }
 function mostrarSolicitudes() {
-  const pendientes = planillaActual.solicitudes.filter(solicitudPendienteDeDecision);
+  const pendientes = planillaActual.solicitudes.filter(s => solicitudPendienteDeDecision(s) || s.seguimiento || s.estado === "COMPRADO A RETIRAR");
   prepararLote();
 
   listaSolicitudes.replaceChildren();
@@ -637,7 +647,9 @@ function mostrarSolicitudes() {
       const casilla=document.createElement('input');casilla.type='checkbox';casilla.value=solicitud.id;
       casilla.setAttribute('aria-label',`Seleccionar ${solicitud.cantidad} de ${solicitud.producto}`);
       casilla.addEventListener('change',()=>{if(casilla.checked)seleccionCompras.add(solicitud.id);else seleccionCompras.delete(solicitud.id);actualizarSeleccionCompras();});
-      etiqueta.append(casilla);fila.append(etiqueta,boton);listaSolicitudes.append(fila);
+      if (solicitudPendienteDeDecision(solicitud)) etiqueta.append(casilla);
+      fila.append(etiqueta, boton);
+      listaSolicitudes.append(fila);
 
     }
   );
@@ -1033,7 +1045,10 @@ function abrirSolicitud(solicitud) {
   document.getElementById(
     "datos-solicitud-compra"
   ).textContent =
-    `${solicitud.cantidad} · ${solicitud.producto} · Planilla ${planillaActual.id} · ${planillaActual.obra}`;
+    `${solicitud.cantidad} · ${solicitud.producto} · Planilla ${planillaActual.id} · ${planillaActual.obra}` +
+    (solicitud.seguimiento
+      ? ` · Retirado: ${solicitud.retirada} · En proveedor: ${(solicitud.cantidad - solicitud.retirada).toLocaleString("es-AR")} · Entregado: ${solicitud.entregada} · Pendiente en obra: ${(solicitud.cantidad - solicitud.entregada).toLocaleString("es-AR")}`
+      : "");
 
 
   const selectorEstado =
@@ -1067,8 +1082,19 @@ function abrirSolicitud(solicitud) {
   }
 
 
-  selectorEstado.value =
-    solicitud.estado;
+  selectorEstado.querySelector('[data-retiro]')?.remove();
+  for (const opcion of selectorEstado.options) {
+    opcion.disabled = Boolean(solicitud.seguimiento) && opcion.value !== solicitud.estado;
+  }
+  if (solicitud.retirada != null && Number(solicitud.cantidad) > Number(solicitud.retirada)) {
+    const opcion = new Option("Comprado · Registrar retiro parcial", opcionRetiro);
+    opcion.dataset.retiro = "true";
+    selectorEstado.add(opcion);
+  }
+  selectorEstado.value = solicitud.seguimiento && selectorEstado.querySelector('[data-retiro]')
+    ? opcionRetiro : solicitud.estado;
+  campoRetiro.value = "";
+  selectorEstado.dispatchEvent(new Event("change"));
 
 
   document.getElementById(
@@ -1163,6 +1189,32 @@ formularioSolicitud.addEventListener(
 
 
     try {
+
+      if (estadoNuevo === opcionRetiro) {
+        if (!proveedorNuevo) throw new Error("Elegí el proveedor de la compra.");
+        const cantidad = campoRetiro.value.trim().replace(",", ".");
+        if (!/^\d+(?:\.\d+)?$/.test(cantidad) || Number(cantidad) <= 0) {
+          throw new Error("Ingresá una cantidad positiva para el retiro.");
+        }
+        const idPlanilla = planillaActual.id;
+        const resultado = await llamarApi(
+          `/compras/planillas/${idPlanilla}/solicitudes/${solicitudActual.id}/retiros`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              cantidad, retirada_anterior: solicitudActual.retirada,
+              estado_anterior: estadoAnterior, proveedor_id: proveedorNuevo,
+              observaciones: observacionesNuevas,
+            }),
+          }
+        );
+        dialogoSolicitud.close();
+        planillaActual = await llamarApi(`/compras/planillas/${idPlanilla}`);
+        mostrarSolicitudes();
+        await Promise.all([cargarPlanillas(), cargarTareas(), cargarDiaCompras()]);
+        mensaje("mensaje-solicitudes-compra", resultado.mensaje);
+        return;
+      }
 
       const estaOffline =
         !navigator.onLine;
