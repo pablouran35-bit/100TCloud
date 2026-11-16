@@ -37,7 +37,25 @@ async function abrir(id){
     for(const s of original.solicitudes){
       const grupo=document.createElement('fieldset'),leyenda=document.createElement('legend');leyenda.textContent='Solicitud '+s.id;grupo.append(leyenda);
       const pref='s'+s.id+'_';
-      for(const [key,titulo,cat] of [['persona_id','Solicitante',opciones.personas],['producto_id','Artículo',opciones.productos],['area_id','Área',opciones.areas],['proveedor_id','Proveedor',[[null,'Sin proveedor'],...opciones.proveedores]]])campo(grupo,pref+key,titulo,s[key],cat);
+      for(const [key,titulo,cat] of [['persona_id','Solicitante',opciones.personas],['producto_id','Artículo',opciones.productos],['area_id','Área',opciones.areas],['proveedor_id','Proveedor',[[null,'Sin proveedor'],...opciones.proveedores]]]){
+        let buscador;
+        if(key==='producto_id') buscador=campo(grupo,pref+'buscar_articulo','Buscar artículo por nombre','',null,'search');
+        const selector=campo(grupo,pref+key,titulo,s[key],cat);
+        if(buscador){
+          const filtrar=()=>{
+            const elegido=selector.value;
+            const consulta=buscador.value.trim().toLocaleLowerCase('es');
+            selector.replaceChildren();
+            for(const [id,nombre] of cat){
+              if(String(id)===elegido||nombre.toLocaleLowerCase('es').includes(consulta)){
+                selector.add(new Option(nombre,id));
+              }
+            }
+            selector.value=elegido;
+          };
+          buscador.addEventListener('input',filtrar);
+        }
+      }
       campo(grupo,pref+'cantidad','Cantidad',s.cantidad).inputMode='decimal';
       campo(grupo,pref+'fecha_solicitud','Fecha y hora de solicitud (AAAA-MM-DD HH:MM:SS y zona horaria)',s.fecha_solicitud);
       campo(grupo,pref+'estado','Estado',s.estado);

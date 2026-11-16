@@ -114,6 +114,8 @@
       <button class="opcion disponible" type="button" data-seccion="reportes">
         Reportes
       </button>
+      <button class="opcion disponible" type="button" data-seccion="precios">Precios y efectivo estimado</button>
+      <button class="opcion disponible" type="button" data-seccion="editar-planillas" data-solo-administrador hidden>Corregir solicitudes y planillas</button>
     </section>
 
     <p id="mensaje" role="status"></p>
@@ -131,12 +133,20 @@
     } else {
       document.getElementById("opciones").hidden = false;
       if (roles.includes("ADMINISTRADOR")) {
-        document.querySelector('[data-solo-administrador]').hidden = false;
+        document.querySelectorAll('[data-solo-administrador]').forEach(boton => { boton.hidden = false; });
       }
     }
 
     document.querySelectorAll("[data-seccion]").forEach((boton) => {
       boton.addEventListener("click", () => {
+        if (boton.dataset.seccion === "editar-planillas") {
+          window.location.href = "/app/editar_planillas.html";
+          return;
+        }
+        if (boton.dataset.seccion === "precios") {
+          window.location.href = "/app/administracion_precios.html";
+          return;
+        }
         if (boton.dataset.seccion === "obras") {
           window.location.href = "/app/administracion.html";
           return;

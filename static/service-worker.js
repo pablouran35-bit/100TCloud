@@ -1,5 +1,6 @@
-const CACHE_NAME = "100tcompras-shell-v19-mercaderia";
+const CACHE_NAME = "100tcompras-shell-v20-precios-solicitudes";
 const APP_FILES = [
+  "/app/precios_compra.js",
   "/app/",
   "/app/index.html",
   "/app/bloc_notas.html",

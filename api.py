@@ -37,7 +37,7 @@ DURACION_SESION_HORAS = 12
 
 app = FastAPI(
     title="100TCloud",
-    version="1.0.0"
+    version="1.0.5"
 )
 
 
@@ -48,6 +48,10 @@ app.mount(
 )
 
 
+from precios_api import router as router_precios
+app.include_router(router_precios)
+from precios_compra_api import router as router_precio_real
+app.include_router(router_precio_real)
 app.include_router(router_administracion)
 app.include_router(router_articulos)
 app.include_router(router_areas)

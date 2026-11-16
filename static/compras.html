@@ -416,10 +416,11 @@
        copia vieja guardada en caché. -->
 
   <script
-    src="/app/compras.js?v=mercaderia1"
+    src="/app/compras.js?v=precios-reales1"
     defer
   ></script>
 
+<script src="/app/precios_compra.js?v=1" defer></script>
 </head>
 
 <body>
@@ -427,7 +428,7 @@
   <main>
 
     <header>
-      <h1>Compras</h1><a class="volver" href="/app/recorrido.html">Recorrido de proveedores</a>
+      <h1>Compras</h1><a class="volver" href="/app/administracion_precios.html">Efectivo estimado y artículos sin precio</a><a class="volver" href="/app/recorrido.html">Recorrido de proveedores</a>
 
       <a
         class="volver"
@@ -492,7 +493,7 @@
         </h2>
 
         <p class="ayuda">
-          Se muestran solo solicitudes pendientes de decidir. Los artículos con saldo por retirar también aparecen acá. Las ya compradas, encargadas, señadas o marcadas como no disponibles se consultan en Día de compras.
+          Se muestran solo solicitudes pendientes de decidir. Las ya compradas, encargadas, señadas o marcadas como no disponibles se consultan en Día de compras.
         </p>
 
         <label for="buscar-planilla-compra">
@@ -702,6 +703,13 @@
     ></p>
 
 
+    <section aria-label="Precio real de compra">
+      <label id="unidad-precio-real" for="precio-real">Precio unitario real (ARS)</label>
+      <input id="precio-real" inputmode="decimal" placeholder="Sin precio" disabled>
+      <button id="guardar-precio-real" type="button" disabled>Guardar precio real</button>
+      <p id="mensaje-precio-real" role="status"></p>
+      <p>Precio por unidad para esta compra. Vacío quita el precio. Requiere conexión.</p>
+    </section>
     <form id="formulario-solicitud-compra">
 
       <label for="estado-solicitud-compra">

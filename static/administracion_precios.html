@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administración · Precios y efectivo</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f8f9fb;color:#223c61;font:16px Arial,sans-serif}
+    main{max-width:1050px;margin:auto;padding:24px}h1{font-size:24px}a{color:#365d8d}
+    section{padding:20px;background:white;border:1px solid #e1e5eb;border-radius:14px;margin:20px 0}
+    label{display:block;margin:12px 0 6px}input,select,button{font:inherit;padding:10px;border:1px solid #cbd2dc;border-radius:8px;max-width:100%;min-height:44px}
+    button{background:#223c61;color:white;cursor:pointer}button:disabled{opacity:.5}
+    .filtros{display:flex;gap:12px;flex-wrap:wrap;align-items:end}.filtros>div{flex:1;min-width:160px}
+    .tabla{overflow:auto;max-height:440px}table{border-collapse:collapse;width:100%;font-size:14px}
+    th,td{padding:12px 8px;text-align:left;border-bottom:1px solid #e1e5eb}th{background:#eaf1fb;position:sticky;top:0}
+    #total{font-size:25px;font-weight:bold}#aviso{color:#935300}#mensaje{min-height:24px}small{line-height:1.5;display:block;color:#647184}
+    [hidden]{display:none!important}#precio{width:150px}
+  </style>
+  <script src="/app/administracion_precios.js" defer></script>
+</head>
+<body><main>
+  <a href="/app/administracion_menu.html">← Administración</a>
+  <h1>Precios unitarios y efectivo estimado</h1>
+  <p id="mensaje" role="status"></p>
+  <div id="contenido" hidden>
+    <section>
+      <h2>Precios de referencia por artículo</h2>
+      <small>Carga manual compartida entre web, PC y Mac. El precio corresponde a la unidad del artículo. Dejá vacío para quitarlo; cero es un precio válido.</small>
+      <label for="busqueda">Buscar artículo</label><input id="busqueda" type="search" placeholder="Nombre del artículo">
+      <div class="tabla"><table><thead><tr><th>Artículo</th><th>Unidad</th><th>Precio unitario</th><th></th></tr></thead><tbody id="catalogo"></tbody></table></div>
+      <form id="editor" hidden>
+        <p id="articulo-elegido"></p>
+        <label for="precio">Precio unitario ($)</label>
+        <input id="precio" inputmode="decimal" autocomplete="off" placeholder="Ej.: 1234,50">
+        <button id="guardar" type="submit">Guardar precio</button>
+        <button id="cancelar" type="button">Cancelar</button>
+        <small>Sin separador de miles. Se admiten coma o punto decimal.</small>
+      </form>
+    </section>
+    <section>
+      <h2>¿Cuánto efectivo voy a necesitar?</h2>
+      <form id="filtros" class="filtros">
+        <div><label for="fecha">Fecha de compra</label><input id="fecha" type="date"><small>Vacía: todas las fechas.</small></div>
+        <div><label for="obra">Obra</label><select id="obra"><option value="">Todas</option></select></div>
+        <div><label for="planilla">Planilla</label><select id="planilla"><option value="">Todas</option></select></div>
+        <div><label><input id="aprobadas" type="checkbox"> Solo aprobadas</label></div>
+        <button id="calcular" type="submit">Calcular</button>
+      </form>
+      <h3>Artículos sin precio para el cálculo</h3>
+      <ul id="sin-precio"></ul>
+      <p id="alcance"></p><p id="total"></p><p id="aviso" role="status"></p>
+      <small>Incluye cantidades pendientes de compra, solicitadas, pendientes, encargadas y no disponibles. Por defecto incluye planillas pendientes de aprobación. Excluye compras realizadas, señadas, entregadas, canceladas y rechazadas. No descuenta señas ni calcula deudas.</small>
+      <div class="tabla"><table><thead><tr><th>Artículo</th><th>Unidad</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead><tbody id="resumen"></tbody></table></div>
+    </section>
+  </div>
+</main></body></html>

@@ -647,7 +647,9 @@ function mostrarSolicitudes() {
       const casilla=document.createElement('input');casilla.type='checkbox';casilla.value=solicitud.id;
       casilla.setAttribute('aria-label',`Seleccionar ${solicitud.cantidad} de ${solicitud.producto}`);
       casilla.addEventListener('change',()=>{if(casilla.checked)seleccionCompras.add(solicitud.id);else seleccionCompras.delete(solicitud.id);actualizarSeleccionCompras();});
-      if (solicitudPendienteDeDecision(solicitud)) etiqueta.append(casilla);
+      if (solicitudPendienteDeDecision(solicitud)) {
+        etiqueta.append(casilla);
+      }
       fila.append(etiqueta, boton);
       listaSolicitudes.append(fila);
 
@@ -1031,6 +1033,7 @@ function mostrarHistorial(
    ========================================================== */
 
 function abrirSolicitud(solicitud) {
+  cargarPrecioReal(solicitud.id);
 
   solicitudActual =
     solicitud;
