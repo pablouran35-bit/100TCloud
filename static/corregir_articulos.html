@@ -1,0 +1,11 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Corregir solicitudes · 100TCompras</title>
+<style>*{box-sizing:border-box}body{font:16px Arial;background:#f8f9fb;color:#223c61;margin:0}main{max-width:900px;margin:auto;padding:20px}label{display:block;margin:14px 0 6px}input,select,button{font:inherit;padding:12px;border:1px solid #ccd4df;border-radius:8px;max-width:100%}input,select{width:100%}button{background:#223c61;color:white;margin:12px 0}a{color:#223c61}[hidden]{display:none!important}#detalle{white-space:pre-wrap}</style>
+<main><a href="/app/administracion_menu.html">← Administración</a><h1>Corregir artículos de solicitudes</h1>
+<p>Reemplazá “Otros” por el artículo correcto. Se conservan cantidad, observaciones, estado y movimientos. Los cambios quedan en el historial.</p>
+<form id="buscar-planilla"><label for="numero">Número de planilla</label><input id="numero" type="number" min="1" required><button>Abrir planilla</button></form>
+<p id="mensaje" role="status"></p>
+<form id="correccion" hidden><label for="solicitud">Solicitud</label><select id="solicitud"></select><p id="detalle"></p>
+<p><a href="/app/administracion_articulos.html" target="_blank" rel="noopener">Cargar un artículo nuevo en el catálogo</a>. Después volvé a abrir la planilla para actualizar la lista.</p>
+<label for="buscar-articulo">Buscar artículo correcto</label><input id="buscar-articulo" type="search"><label for="articulo">Artículo del catálogo</label><select id="articulo" required></select><button id="guardar">Guardar artículo correcto</button></form>
+</main><script src="/app/corregir_articulos.js" defer></script></html>

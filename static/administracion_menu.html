@@ -116,6 +116,7 @@
       </button>
       <button class="opcion disponible" type="button" data-seccion="precios">Precios y efectivo estimado</button>
       <button class="opcion disponible" type="button" data-seccion="editar-planillas" data-solo-administrador hidden>Corregir solicitudes y planillas</button>
+      <button class="opcion disponible" type="button" data-seccion="corregir-articulos">Corregir artículos de solicitudes</button>
     </section>
 
     <p id="mensaje" role="status"></p>
@@ -139,6 +140,7 @@
 
     document.querySelectorAll("[data-seccion]").forEach((boton) => {
       boton.addEventListener("click", () => {
+        if (boton.dataset.seccion === "corregir-articulos") { window.location.href="/app/corregir_articulos.html"; return; }
         if (boton.dataset.seccion === "editar-planillas") {
           window.location.href = "/app/editar_planillas.html";
           return;
