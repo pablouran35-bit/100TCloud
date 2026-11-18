@@ -1033,6 +1033,7 @@ function mostrarHistorial(
    ========================================================== */
 
 function abrirSolicitud(solicitud) {
+  prepararCompraParcial(solicitud);
   cargarPrecioReal(solicitud.id);
 
   solicitudActual =

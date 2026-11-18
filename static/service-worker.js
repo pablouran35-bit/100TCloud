@@ -1,5 +1,6 @@
-const CACHE_NAME = "100tcompras-shell-v21-corregir-articulos";
+const CACHE_NAME = "100tcompras-shell-v22-compra-parcial";
 const APP_FILES = [
+  "/app/compra_parcial.js",
   "/app/precios_compra.js",
   "/app/",
   "/app/index.html",

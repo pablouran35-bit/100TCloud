@@ -416,7 +416,7 @@
        copia vieja guardada en caché. -->
 
   <script
-    src="/app/compras.js?v=precios-reales1"
+    src="/app/compras.js?v=compra-parcial1"
     defer
   ></script>
 
@@ -710,6 +710,7 @@
       <p id="mensaje-precio-real" role="status"></p>
       <p>Precio por unidad para esta compra. Vacío quita el precio. Requiere conexión.</p>
     </section>
+    <button id="abrir-compra-parcial" type="button" hidden>Comprar una parte y dejar saldo pendiente</button>
     <form id="formulario-solicitud-compra">
 
       <label for="estado-solicitud-compra">
@@ -885,5 +886,16 @@
   </dialog>
 
   <script src="/app/comunicaciones-eventos.js" defer></script>
-</body>
+<dialog id="compra-parcial-dialogo"><h2 id="parcial-titulo">Comprar una parte</h2>
+<form id="form-compra-parcial">
+<label for="parcial-cantidad">Cantidad que comprás ahora</label><input id="parcial-cantidad" inputmode="decimal" required>
+<p id="parcial-saldo"></p>
+<label for="parcial-proveedor">Proveedor de esta compra</label><select id="parcial-proveedor" required></select>
+<label for="parcial-estado">¿Cómo queda lo comprado?</label><select id="parcial-estado">
+<option value="COMPRADO Y RETIRADO">Comprado y retirado</option><option value="COMPRADO A RETIRAR">Comprado, queda a retirar</option>
+<option value="COMPRADO A ENTREGAR POR PROVEEDOR/FLETE">Comprado, lo entrega proveedor/flete</option></select>
+<p>El resto seguirá pendiente en esta planilla para comprarlo después o en otro proveedor. Se conserva el detalle del pedido original. Requiere conexión.</p>
+<p id="parcial-mensaje" role="status"></p><button id="parcial-guardar" type="submit">Registrar compra y dejar saldo pendiente</button>
+<button id="parcial-cerrar" type="button">Cancelar</button></form></dialog>
+<script src="/app/compra_parcial.js?v=1" defer></script></body>
 </html>
